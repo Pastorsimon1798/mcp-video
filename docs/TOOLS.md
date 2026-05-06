@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-87 MCP tools across 10 categories, including the `search_tools` meta-tool. All return structured JSON with `success`, `output_path`, and operation metadata. On failure, they return `{"success": false, "error": {...}}` with auto-fix suggestions.
+91 MCP tools across 11 categories, including the `search_tools` meta-tool. All return structured JSON with `success`, `output_path`, and operation metadata. On failure, they return `{"success": false, "error": {...}}` with auto-fix suggestions.
 
 ---
 
@@ -8,7 +8,7 @@
 
 | Tool | Description |
 |------|-------------|
-| `search_tools` | Search all registered MCP tools by keyword. Returns matching tool names, descriptions, and required parameters. Use this when you need to find the right tool without loading all 87 descriptions into context. |
+| `search_tools` | Search all registered MCP tools by keyword. Returns matching tool names, descriptions, and required parameters. Use this when you need to find the right tool without loading all 91 descriptions into context. |
 
 **Python Client:**
 ```python
@@ -17,6 +17,19 @@ editor = Client()
 results = editor.search_tools("subtitle")
 # Returns: {"success": True, "count": 3, "tools": [...]}
 ```
+
+---
+
+## Cinematic Creation (4 tools)
+
+Plan video generation like a director of photography before rendering. These tools implement a PUSHING CREATION-compatible pre-production workflow: project scaffold, STYLE_/NEG_ blocks, storyboard tables, and prompt expansion.
+
+| Tool | Description |
+|------|-------------|
+| `video_project_create` | Scaffold `projects/<slug>/style.md`, `storyboard.md`, and `refs/` using cinematic starter templates |
+| `style_pack_read` | Parse STYLE_ and NEG_ blocks from `style.md` or a project directory |
+| `storyboard_read` | Parse storyboard rows from `storyboard.md` or a project directory |
+| `shot_prompt_render` | Expand one storyboard shot into `prompt` and `negative_prompt` strings for a generation provider |
 
 ---
 

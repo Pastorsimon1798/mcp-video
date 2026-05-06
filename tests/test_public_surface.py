@@ -188,6 +188,10 @@ EXPECTED_SERVER_TOOLS = {
     "image_extract_colors",
     "image_generate_palette",
     "image_analyze_product",
+    "video_project_create",
+    "style_pack_read",
+    "storyboard_read",
+    "shot_prompt_render",
 }
 
 
@@ -227,7 +231,7 @@ def test_server_tool_registry_keeps_public_tool_names():
     tool_names = {tool.name for tool in asyncio.run(mcp.list_tools())}
 
     assert tool_names >= EXPECTED_SERVER_TOOLS
-    assert len(tool_names) == 87
+    assert len(tool_names) == 91
 
 
 def test_stdio_server_launches_and_lists_tools_like_registry_clients():
@@ -242,7 +246,7 @@ def test_stdio_server_launches_and_lists_tools_like_registry_clients():
         tool_names = {tool.name for tool in tools_result.tools}
         assert init_result.serverInfo.name == "mcp-video"
         assert tool_names >= EXPECTED_SERVER_TOOLS
-        assert len(tool_names) == 87
+        assert len(tool_names) == 91
 
     asyncio.run(check_server())
 
@@ -306,6 +310,8 @@ def test_module_reexports():
         "video_analyze",
         "hyperframes_render",
         "image_analyze_product",
+        "video_project_create",
+        "shot_prompt_render",
     ]:
         assert hasattr(server, name), f"server missing {name}"
 

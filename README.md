@@ -10,13 +10,13 @@
 
 <p align="center">
   <strong>Video editing MCP server for AI agents.</strong><br>
-  87 structured tools for FFmpeg video editing, media analysis, subtitles, audio, effects, and Hyperframes video creation.
+  91 structured tools for FFmpeg video editing, cinematic prompt planning, media analysis, subtitles, audio, effects, and Hyperframes video creation.
 </p>
 
 <p align="center">
   <a href="https://pypi.org/project/mcp-video/"><img src="https://img.shields.io/pypi/v/mcp-video.svg" alt="PyPI"></a>
   <a href="https://github.com/KyaniteLabs/mcp-video/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/KyaniteLabs/mcp-video/.github/workflows/ci.yml?branch=master&label=CI" alt="CI"></a>
-  <img src="https://img.shields.io/badge/MCP-87%20tools-orange.svg" alt="87 MCP tools">
+  <img src="https://img.shields.io/badge/MCP-91%20tools-orange.svg" alt="91 MCP tools">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Apache 2.0">
 </p>
@@ -35,7 +35,7 @@
 
 ## Public Discovery
 
-**mcp-video** is a free, open-source **Model Context Protocol (MCP) server**, Python library, and CLI that gives AI agents a real video-editing surface. It wraps FFmpeg, media analysis, quality checks, subtitles, audio generation, effects, and code-driven Hyperframes rendering behind structured tool schemas.
+**mcp-video** is a free, open-source **Model Context Protocol (MCP) server**, Python library, and CLI that gives AI agents a real video-editing surface. It wraps FFmpeg, cinematic style-pack/storyboard planning, media analysis, quality checks, subtitles, audio generation, effects, and code-driven Hyperframes rendering behind structured tool schemas.
 
 Best-fit searches:
 
@@ -60,6 +60,7 @@ Use it when you want an AI assistant to:
 - add text, subtitles, watermarks, overlays, filters, fades, effects, and transitions;
 - extract audio, normalize audio, synthesize audio, add generated audio, or create waveforms;
 - detect scenes, make thumbnails, generate storyboards, compare quality, and create release checkpoints;
+- scaffold cinematic projects, read STYLE_/NEG_ blocks, parse storyboard tables, and expand shot prompts;
 - create new video projects with Hyperframes and post-process the result with FFmpeg tools;
 - drive repeatable media workflows from Claude Code, Cursor, Codex-style clients, scripts, or CI.
 
@@ -164,17 +165,19 @@ mcp-video video-quality-check clip.mp4
 | Social clips | "Turn this landscape recording into a captioned TikTok and YouTube Short." |
 | Podcast production | "Find the strongest segment, trim it, normalize audio, add chapters, and export." |
 | Product demos | "Create a short launch video from screenshots, title cards, and voiceover." |
+| Cinematic planning | "Create a style pack and storyboard, then render shot prompts for generation." |
 | Quality review | "Compare these two exports, make thumbnails, and flag visual or audio problems." |
 | Batch automation | "Convert this folder of clips to web-ready MP4 with consistent loudness." |
 | Code-created video | "Scaffold a Hyperframes composition, render it, then add subtitles and a watermark." |
 
 ## Tool Surface
 
-mcp-video registers **87 MCP tools** across 10 categories, including a `search_tools` discovery tool so agents can find the right operation without loading every tool description into context.
+mcp-video registers **91 MCP tools** across 11 categories, including a `search_tools` discovery tool so agents can find the right operation without loading every tool description into context.
 
 | Category | Count | Highlights |
 | --- | ---: | --- |
 | Core video editing | 32 | trim, merge, resize, crop, rotate, convert, overlays, subtitles, export, cleanup, templates |
+| Cinematic creation | 4 | project scaffold, style-pack parsing, storyboard parsing, shot prompt expansion |
 | AI-assisted media | 11 | transcription, scene detection, upscaling, stem separation, silence removal, color grading |
 | Hyperframes | 8 | init, preview, render, still, validate, compositions, add block, post-process |
 | Procedural audio | 7 | synthesize, compose, presets, effects, sequences, generated audio, spatial audio |

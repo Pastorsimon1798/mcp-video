@@ -65,6 +65,12 @@ from .server_tools_image import (
     image_extract_colors as image_extract_colors,
     image_generate_palette as image_generate_palette,
 )
+from .server_tools_creation import (
+    shot_prompt_render as shot_prompt_render,
+    storyboard_read as storyboard_read,
+    style_pack_read as style_pack_read,
+    video_project_create as video_project_create,
+)
 from .server_tools_hyperframes import (
     hyperframes_add_block as hyperframes_add_block,
     hyperframes_compositions as hyperframes_compositions,
