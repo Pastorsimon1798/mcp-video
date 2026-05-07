@@ -5,6 +5,7 @@ import subprocess
 import sys
 import asyncio
 import json
+import tomllib
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -292,6 +293,17 @@ def test_server_json_and_readme_match_registry_identity():
     assert server["packages"][0]["runtimeHint"] == "uvx"
     assert server["packages"][0]["transport"]["type"] == "stdio"
     assert f"mcp-name: {server['name']}" in readme
+
+
+def test_heavy_ai_extras_keep_python313_installable():
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    optional_deps = pyproject["project"]["optional-dependencies"]
+
+    for extra in ("upscale", "ai", "all-ai"):
+        dependencies = optional_deps[extra]
+        assert "opencv-contrib-python>=4.10" in dependencies
+        assert "realesrgan>=0.3; python_version < '3.13'" in dependencies
+        assert "basicsr>=1.4; python_version < '3.13'" in dependencies
 
 
 def test_module_reexports():

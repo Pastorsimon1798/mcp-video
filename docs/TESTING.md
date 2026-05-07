@@ -72,7 +72,7 @@ python -m pytest tests/ -v -m "not hyperframes"
 
 ### 5. AI Upscale (`test_44_ai_upscale`)
 - OpenCV DNN with FSRCNN model (57KB, fast)
-- Real-ESRGAN fallback (if basicsr fixed)
+- Real-ESRGAN path only where BasicSR can build; Python 3.13 uses the OpenCV fallback
 - 2x and 4x upscaling
 - Provided by the `mcp-video[ai]` extra (`opencv-contrib-python`, `numpy`)
 
@@ -105,7 +105,7 @@ ffmpeg -filters | grep vidstab
 pip install "mcp-video[ai]"
 
 # Or install individual packages if you only need a subset
-pip install demucs torch torchaudio openai-whisper realesrgan basicsr imagehash numpy opencv-contrib-python
+pip install demucs torch torchaudio torchcodec openai-whisper imagehash numpy opencv-contrib-python
 ```
 
 ## Test Fixtures

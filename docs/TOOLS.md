@@ -81,7 +81,7 @@ Plan video generation like a director of photography before rendering. These too
 | `video_ai_transcribe` | Speech-to-text with timestamp alignment | [openai-whisper](https://pypi.org/project/openai-whisper/) |
 | `video_ai_scene_detect` | ML-enhanced scene change detection (perceptual hashing) | [imagehash](https://pypi.org/project/imagehash/), Pillow |
 | `video_ai_stem_separation` | Isolate vocals, drums, bass, other instruments | [demucs](https://pypi.org/project/demucs/), Torch, TorchAudio, TorchCodec |
-| `video_ai_upscale` | AI super-resolution upscaling (2x or 4x) | [realesrgan](https://pypi.org/project/realesrgan/) or [opencv-contrib-python](https://pypi.org/project/opencv-contrib-python/) |
+| `video_ai_upscale` | AI super-resolution upscaling (2x or 4x) | [opencv-contrib-python](https://pypi.org/project/opencv-contrib-python/); Real-ESRGAN/BasicSR where supported |
 | `video_ai_color_grade` | Auto color grading with style presets or reference matching | FFmpeg |
 | `video_quality_check` | Check brightness, contrast, saturation, audio levels, color balance |
 | `video_design_quality_check` | Full design quality analysis: layout, typography, color, motion, composition |
@@ -94,7 +94,7 @@ Install only the AI dependencies you need:
 pip install "mcp-video[transcribe]"  # Whisper transcription
 pip install "mcp-video[ai-scene]"    # perceptual scene hashing
 pip install "mcp-video[stems]"       # Demucs stem separation
-pip install "mcp-video[upscale]"     # Real-ESRGAN/OpenCV upscaling
+pip install "mcp-video[upscale]"     # OpenCV upscaling; Real-ESRGAN/BasicSR where supported
 pip install "mcp-video[ai]"          # all AI extras, kept for compatibility
 ```
 

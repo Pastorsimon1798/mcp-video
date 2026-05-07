@@ -11,6 +11,12 @@ This project follows a simple release-note style:
 
 ## Unreleased
 
+## 1.3.9 - 2026-05-06
+
+### Fixed
+
+- Fixed `mcp-video[all-ai]` and `mcp-video[upscale]` installs on Python 3.13 by guarding Real-ESRGAN/BasicSR dependencies behind the Python versions where BasicSR still builds, while keeping the OpenCV upscaling fallback installable.
+
 ## 1.3.8 - 2026-05-06
 
 ### Fixed
