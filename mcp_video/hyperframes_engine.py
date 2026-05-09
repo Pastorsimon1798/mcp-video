@@ -464,6 +464,27 @@ def _canonical_resolution(value: str | None) -> str | None:
             return value
 
 
+def _default_render_output(project_path: str, output_format: str | None) -> str:
+    """Return a format-appropriate default render artifact path."""
+    os.makedirs("out", exist_ok=True)
+    name = Path(project_path).name
+    match output_format:
+        case "png-sequence":
+            return os.path.join("out", f"{name}_frames")
+        case "webm" | "mov" | "mp4":
+            return os.path.join("out", f"{name}.{output_format}")
+        case _:
+            return os.path.join("out", f"{name}.mp4")
+
+
+def _render_output_exists(output_path: str, output_format: str | None) -> bool:
+    """Return true when the expected Hyperframes artifact exists."""
+    if output_format == "png-sequence":
+        output_dir = Path(output_path)
+        return output_dir.is_dir() and any(output_dir.glob("*.png"))
+    return os.path.isfile(output_path)
+
+
 def _resolve_render_resolution(width: int | None, height: int | None, resolution: str | None) -> str | None:
     """Return the effective Hyperframes resolution without silently ignoring dimensions."""
     if (width is None) ^ (height is None):
@@ -524,8 +545,7 @@ def render(
 ) -> HyperframesRenderResult:
     """Render a Hyperframes composition to video."""
     if output_path is None:
-        os.makedirs("out", exist_ok=True)
-        output_path = os.path.join("out", f"{Path(project_path).name}.mp4")
+        output_path = _default_render_output(project_path, format)
 
     effective_resolution = _resolve_render_resolution(width, height, resolution)
 
@@ -568,7 +588,7 @@ def render(
     if width and height:
         reported_resolution = f"{width}x{height}"
 
-    if not os.path.isfile(output_path):
+    if not _render_output_exists(output_path, format):
         return HyperframesRenderResult(
             output_path=output_path,
             codec=format or "h264",

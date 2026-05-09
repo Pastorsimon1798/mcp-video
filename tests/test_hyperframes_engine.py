@@ -336,6 +336,71 @@ class TestRender:
             )
             assert result.resolution is None
 
+    def test_png_sequence_output_directory_counts_as_success(self, sample_hyperframes_project, tmp_path):
+        """render() should treat a PNG sequence output directory as the artifact."""
+        project = str(sample_hyperframes_project)
+        output_dir = tmp_path / "frames"
+
+        def fake_run(cmd, **_kwargs):
+            assert cmd[cmd.index("--format") + 1] == "png-sequence"
+            Path(cmd[cmd.index("--output") + 1]).mkdir(parents=True)
+            (Path(cmd[cmd.index("--output") + 1]) / "frame-000001.png").write_bytes(b"png")
+            return _make_completed_process(stdout="Rendered PNG sequence.")
+
+        with (
+            _mock_deps_ok(),
+            patch("mcp_video.hyperframes_engine.subprocess.run", side_effect=fake_run),
+        ):
+            result = render(project, output_path=str(output_dir), format="png-sequence")
+
+        assert result.success is True
+        assert result.output_path == str(output_dir)
+        assert result.size_mb is None
+
+    def test_png_sequence_default_output_is_directory(self, sample_hyperframes_project, tmp_path, monkeypatch):
+        """render() should not default PNG sequences to an .mp4-looking path."""
+        project = str(sample_hyperframes_project)
+        monkeypatch.chdir(tmp_path)
+
+        def fake_run(cmd, **_kwargs):
+            output = Path(cmd[cmd.index("--output") + 1])
+            output.mkdir(parents=True)
+            (output / "frame-000001.png").write_bytes(b"png")
+            return _make_completed_process(stdout="Rendered PNG sequence.")
+
+        with (
+            _mock_deps_ok(),
+            patch("mcp_video.hyperframes_engine.subprocess.run", side_effect=fake_run),
+        ):
+            result = render(project, format="png-sequence")
+
+        assert result.success is True
+        assert result.output_path.endswith("_frames")
+        assert Path(result.output_path).is_dir()
+
+    def test_format_specific_default_output_uses_matching_extension(
+        self, sample_hyperframes_project, tmp_path, monkeypatch
+    ):
+        """render() should not default WebM/MOV requests to an .mp4 path."""
+        project = str(sample_hyperframes_project)
+        monkeypatch.chdir(tmp_path)
+
+        def fake_run(cmd, **_kwargs):
+            output = Path(cmd[cmd.index("--output") + 1])
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"webm")
+            return _make_completed_process(stdout="Rendered WebM.")
+
+        with (
+            _mock_deps_ok(),
+            patch("mcp_video.hyperframes_engine.subprocess.run", side_effect=fake_run),
+        ):
+            result = render(project, format="webm")
+
+        assert result.success is True
+        assert result.output_path.endswith(".webm")
+        assert not result.output_path.endswith(".mp4")
+
 
 # ---------------------------------------------------------------------------
 # Test: compositions
