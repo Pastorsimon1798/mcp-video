@@ -222,8 +222,10 @@ def audio_effects(
     # Read input
     with wave.open(input_path, "rb") as wav_file:
         sample_rate = wav_file.getframerate()
+        sample_width = wav_file.getsampwidth()
+        channels = wav_file.getnchannels()
         frames = wav_file.readframes(wav_file.getnframes())
-        samples = _pcm_to_float(frames)
+        samples = _pcm_to_float(frames, sample_width=sample_width, channels=channels)
 
     # Apply effects chain
     for effect in effects:

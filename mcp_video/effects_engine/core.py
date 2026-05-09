@@ -221,19 +221,16 @@ def effect_noise(
     """
     input_path = _validate_input_path(input_path)
     _validate_output_path(output)
-    # Use noise filter if available, otherwise usegeq with random
-    seed_expr = "random(0)" if animated else "0"
+    intensity = _sanitize_ffmpeg_number(intensity, "intensity")
+    safe_strength = _sanitize_ffmpeg_number(intensity * 100, "noise_strength")
+    noise_flags = "t+u" if animated else "u"
 
     if mode == "color":
-        # Color noise
-        noise_expr = f"lum(X,Y)+{intensity * 50}*({seed_expr}*2-1)"
-        cb_expr = f"cb(X,Y)+{intensity * 30}*({seed_expr}*2-1)"
-        cr_expr = f"cr(X,Y)+{intensity * 30}*({seed_expr}*2-1)"
-        filters = f"geq=lum='{noise_expr}':cb='{cb_expr}':cr='{cr_expr}'"
+        filters = f"format=yuv420p,noise=alls={safe_strength}:allf={noise_flags}"
+    elif mode in {"film", "digital"}:
+        filters = f"format=yuv420p,noise=c0s={safe_strength}:c0f={noise_flags}"
     else:
-        # Luminance noise only
-        noise_expr = f"lum(X,Y)*(1+{intensity}*({seed_expr}*2-1))"
-        filters = f"geq=lum='{noise_expr}'"
+        filters = f"format=yuv420p,noise=c0s={safe_strength}:c0f={noise_flags}"
 
     cmd = [
         "ffmpeg",

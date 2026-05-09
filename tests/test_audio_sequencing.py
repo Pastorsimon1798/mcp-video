@@ -1,5 +1,7 @@
 """Tests for audio sequencing, composition, and effects."""
 
+import math
+import wave
 from pathlib import Path
 
 import pytest
@@ -187,3 +189,27 @@ class TestAudioEffects:
             ],
         )
         assert Path(result).exists()
+
+    def test_24_bit_pcm_wav_preserves_frame_count(self, tmp_path):
+        src = tmp_path / "src-24bit.wav"
+        output = tmp_path / "out.wav"
+        sample_rate = 48000
+        input_frames = 2400
+
+        frames = bytearray()
+        for i in range(input_frames):
+            sample = int(0.2 * 8388607 * math.sin(2 * math.pi * 440 * i / sample_rate))
+            frames.extend(sample.to_bytes(3, "little", signed=True))
+
+        with wave.open(str(src), "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(3)
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(bytes(frames))
+
+        result = audio_effects(str(src), str(output), [{"type": "normalize"}])
+
+        assert Path(result).exists()
+        with wave.open(result, "rb") as wav_file:
+            assert wav_file.getframerate() == sample_rate
+            assert wav_file.getnframes() == input_frames
