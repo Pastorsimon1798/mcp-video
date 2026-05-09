@@ -789,6 +789,14 @@ class TestServerValidationAI:
         assert result["success"] is False
 
 
+class TestServerValidationCompareQuality:
+    def test_compare_quality_rejects_bad_metric_before_input_validation(self):
+        result = video_compare_quality("/tmp/missing-original.mp4", "/tmp/missing-distorted.mp4", metrics=["vmaf"])
+
+        assert result["success"] is False
+        assert "metrics" in result["error"]["message"]
+
+
 class TestServerValidationOverlayPosition:
     def test_watermark_rejects_bad_position_before_input_validation(self):
         result = video_watermark("/tmp/missing.mp4", "/tmp/logo.png", position="middle-ish")

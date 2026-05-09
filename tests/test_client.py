@@ -389,6 +389,10 @@ class TestClientValidators:
         with pytest.raises(MCPVideoError, match="position must be one of"):
             editor.overlay_video("/tmp/video.mp4", "/tmp/overlay.mp4", position="middle-ish")
 
+    def test_compare_quality_rejects_unknown_metric(self, editor):
+        with pytest.raises(MCPVideoError, match="metrics must be one of"):
+            editor.compare_quality("/tmp/a.mp4", "/tmp/b.mp4", metrics=["vmaf"])
+
     def test_convert_invalid_format(self, editor):
         with pytest.raises(MCPVideoError, match="format must be one of"):
             editor.convert("video.mp4", format="avi")
