@@ -183,6 +183,29 @@ def audio_sequence(
     return write_wav(pcm_data, output, sample_rate)
 
 
+def _validate_audio_compose_tracks(tracks: list[dict[str, Any]], duration: float) -> None:
+    """Validate compose tracks before allocating or writing output."""
+    if duration <= 0:
+        raise MCPVideoError("duration must be > 0", error_type="validation_error", code="invalid_parameter")
+    if not isinstance(tracks, list) or not tracks:
+        raise MCPVideoError("tracks cannot be empty", error_type="validation_error", code="invalid_parameter")
+
+    for i, track in enumerate(tracks):
+        if not isinstance(track, dict):
+            raise MCPVideoError(
+                f"tracks[{i}] must be a dict",
+                error_type="validation_error",
+                code="invalid_parameter",
+            )
+        volume = track.get("volume", 1.0)
+        if not isinstance(volume, (int, float)) or volume < 0 or volume > 1:
+            raise MCPVideoError(
+                f"tracks[{i}].volume must be between 0 and 1, got {volume}",
+                error_type="validation_error",
+                code="invalid_parameter",
+            )
+
+
 def audio_compose(
     tracks: list[dict[str, Any]],
     duration: float,
@@ -204,6 +227,8 @@ def audio_compose(
     Returns:
         Path to generated WAV file
     """
+    _validate_audio_compose_tracks(tracks, duration)
+
     total_samples = int(duration * sample_rate)
     mix_buffer = [0.0] * total_samples
 

@@ -127,6 +127,32 @@ class TestAudioCompose:
             audio_compose([{"volume": 0.5}], duration=0.1, output=output, sample_rate=8000)
         assert not Path(output).exists()
 
+    def test_compose_empty_tracks_rejected(self, tmp_path):
+        output = str(tmp_path / "out.wav")
+        with pytest.raises(MCPVideoError, match="tracks"):
+            audio_compose([], duration=0.1, output=output, sample_rate=8000)
+        assert not Path(output).exists()
+
+    def test_compose_non_dict_track_rejected(self, tmp_path):
+        output = str(tmp_path / "out.wav")
+        with pytest.raises(MCPVideoError, match=r"tracks\[0\]"):
+            audio_compose([None], duration=0.1, output=output, sample_rate=8000)
+        assert not Path(output).exists()
+
+    def test_compose_non_positive_duration_rejected(self, tmp_path):
+        track = _make_wav(str(tmp_path / "track.wav"))
+        output = str(tmp_path / "out.wav")
+        with pytest.raises(MCPVideoError, match="duration"):
+            audio_compose([{"file": track}], duration=0, output=output, sample_rate=8000)
+        assert not Path(output).exists()
+
+    def test_compose_invalid_volume_rejected(self, tmp_path):
+        track = _make_wav(str(tmp_path / "track.wav"))
+        output = str(tmp_path / "out.wav")
+        with pytest.raises(MCPVideoError, match="volume"):
+            audio_compose([{"file": track, "volume": 2.0}], duration=0.1, output=output, sample_rate=8000)
+        assert not Path(output).exists()
+
     def test_compose_multiple_tracks(self, tmp_path):
         t1 = _make_wav(str(tmp_path / "t1.wav"), freq=440)
         t2 = _make_wav(str(tmp_path / "t2.wav"), freq=880)
