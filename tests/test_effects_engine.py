@@ -77,6 +77,31 @@ def test_glow_uses_non_additive_blend_by_default(tmp_path, monkeypatch):
     assert "all_opacity=0.25" in filter_graph
 
 
+def test_film_noise_uses_luma_only_noise_filter(tmp_path, monkeypatch):
+    from mcp_video import effects_engine
+
+    input_path = tmp_path / "input.mp4"
+    output_path = tmp_path / "output.mp4"
+    input_path.write_bytes(b"placeholder")
+    calls = []
+
+    def fake_run_ffmpeg(cmd):
+        calls.append(cmd.copy())
+        Path(cmd[-1]).write_bytes(b"output")
+
+    monkeypatch.setattr(effects_engine.core, "_run_command", fake_run_ffmpeg)
+
+    result = effects_engine.effect_noise(str(input_path), str(output_path), intensity=0.03, mode="film")
+
+    assert result == str(output_path)
+    assert len(calls) == 1
+    filter_graph = calls[0][5]
+    assert "geq=" not in filter_graph
+    assert "noise=c0s=3.0" in filter_graph
+    assert "c1s" not in filter_graph
+    assert "c2s" not in filter_graph
+
+
 def test_subtitle_text_is_wrapped_for_safe_area():
     from mcp_video.effects_engine.text import _wrap_subtitle_payload_for_safe_area
 

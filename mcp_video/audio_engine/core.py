@@ -280,12 +280,33 @@ def _float_to_pcm(samples: list[float]) -> bytes:
     return b"".join(pcm_data)
 
 
-def _pcm_to_float(pcm_bytes: bytes) -> list[float]:
-    """Convert 16-bit PCM bytes to float samples."""
+def _pcm_to_float(pcm_bytes: bytes, sample_width: int = DEFAULT_SAMPLE_WIDTH, channels: int = DEFAULT_CHANNELS) -> list[float]:
+    """Convert PCM bytes to mono float samples."""
+    if sample_width not in {1, 2, 3, 4}:
+        raise ValueError(f"Unsupported PCM sample width: {sample_width}")
+    frame_width = sample_width * channels
     samples = []
-    for i in range(0, len(pcm_bytes), 2):
-        value = struct.unpack("<h", pcm_bytes[i : i + 2])[0]
-        samples.append(value / 32767)
+    for frame_start in range(0, len(pcm_bytes), frame_width):
+        frame = pcm_bytes[frame_start : frame_start + frame_width]
+        if len(frame) < frame_width:
+            break
+        channel_values = []
+        for channel in range(channels):
+            start = channel * sample_width
+            raw = frame[start : start + sample_width]
+            if sample_width == 1:
+                value = raw[0] - 128
+                channel_values.append(value / 128)
+            elif sample_width == 2:
+                value = struct.unpack("<h", raw)[0]
+                channel_values.append(value / 32767)
+            elif sample_width == 3:
+                value = int.from_bytes(raw, "little", signed=True)
+                channel_values.append(value / 8388607)
+            else:
+                value = struct.unpack("<i", raw)[0]
+                channel_values.append(value / 2147483647)
+        samples.append(sum(channel_values) / len(channel_values))
     return samples
 
 
