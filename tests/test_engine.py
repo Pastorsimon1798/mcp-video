@@ -548,6 +548,12 @@ class TestBatchOutputDirValidation:
         assert result["failed"] == 1
         assert result["results"][0]["success"] is False
 
+    def test_batch_unknown_operation_rejected_before_input_validation(self):
+        from mcp_video.engine import video_batch
+
+        with pytest.raises(MCPVideoError, match="Unknown operation"):
+            video_batch(["/tmp/missing.mp4"], operation="nonexistent")
+
     def test_batch_rejects_invalid_output_dir(self, sample_video):
         from mcp_video.engine import video_batch
 

@@ -18,6 +18,28 @@ from .errors import MCPVideoError
 from .ffmpeg_helpers import _validate_input_path, _validate_output_path
 from .models import EditResult
 
+VALID_BATCH_OPERATIONS = {
+    "trim",
+    "resize",
+    "convert",
+    "filter",
+    "blur",
+    "color_grade",
+    "watermark",
+    "speed",
+    "fade",
+    "normalize_audio",
+}
+
+
+def _validate_batch_operation(operation: str) -> None:
+    if operation not in VALID_BATCH_OPERATIONS:
+        raise MCPVideoError(
+            f"Unknown operation '{operation}'. Valid operations: {sorted(VALID_BATCH_OPERATIONS)}",
+            error_type="validation_error",
+            code="invalid_operation",
+        )
+
 
 def video_batch(
     inputs: list[str],
@@ -33,6 +55,7 @@ def video_batch(
         }
 
     params = params or {}
+    _validate_batch_operation(operation)
     if output_dir:
         try:
             output_dir = _validate_output_path(output_dir)
@@ -57,11 +80,6 @@ def video_batch(
             if output_dir:
                 os.makedirs(output_dir, exist_ok=True)
             result = _run_batch_operation(input_path, operation, params, output_dir)
-            if result is None:
-                results.append({"input": input_path, "success": False, "error": f"Unknown operation: {operation}"})
-                failed += 1
-                continue
-
             results.append({"input": input_path, "success": True, "output_path": result.output_path})
             succeeded += 1
         except Exception as e:
@@ -83,7 +101,7 @@ def _run_batch_operation(
     operation: str,
     params: dict[str, Any],
     output_dir: str | None,
-) -> EditResult | None:
+) -> EditResult:
     def _batch_output(ext: str | None = None) -> str | None:
         if output_dir:
             name = os.path.splitext(os.path.basename(input_path))[0]
@@ -153,4 +171,8 @@ def _run_batch_operation(
         )
     if operation == "normalize_audio":
         return normalize_audio(input_path, target_lufs=params.get("target_lufs", -16.0), output_path=_batch_output())
-    return None
+    raise MCPVideoError(
+        f"Unknown operation '{operation}'. Valid operations: {sorted(VALID_BATCH_OPERATIONS)}",
+        error_type="validation_error",
+        code="invalid_operation",
+    )

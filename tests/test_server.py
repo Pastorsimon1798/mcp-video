@@ -591,6 +591,11 @@ class TestVideoBatchTool:
         assert result["success"] is False
         assert "error" in result
 
+    def test_batch_unknown_operation_rejected_before_input_validation(self):
+        result = video_batch(["/tmp/missing.mp4"], operation="nonexistent")
+        assert result["success"] is False
+        assert result["error"]["code"] == "invalid_operation"
+
     def test_batch_partial_failure(self, sample_video):
         result = video_batch(
             [sample_video, "/nonexistent/video.mp4"],

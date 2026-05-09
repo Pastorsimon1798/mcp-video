@@ -28,6 +28,7 @@ from .engine import (
     write_metadata,
 )
 from .engine import video_batch as _video_batch
+from .engine_batch import VALID_BATCH_OPERATIONS
 from .errors import MCPVideoError
 from .models import _validate_position
 from .limits import MAX_BATCH_SIZE, MAX_EXPORT_FRAMES_FPS
@@ -559,18 +560,6 @@ def video_batch(
         params: Parameters for the operation.
         output_dir: Directory for output files. Auto-generated if omitted.
     """
-    VALID_BATCH_OPERATIONS = {
-        "trim",
-        "resize",
-        "convert",
-        "filter",
-        "blur",
-        "color_grade",
-        "watermark",
-        "speed",
-        "fade",
-        "normalize_audio",
-    }
     if operation not in VALID_BATCH_OPERATIONS:
         return _validation_error(
             f"Unknown operation '{operation}'. Valid operations: {sorted(VALID_BATCH_OPERATIONS)}",
