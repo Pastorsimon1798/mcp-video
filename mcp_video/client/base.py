@@ -150,18 +150,11 @@ class ClientBase:
             cleanup: Remove intermediate files after the pipeline completes.
                 Only the final output and the original input are kept.
         """
-        import os
-
         self._validate_pipeline_steps(steps)
         final_output = self._resolve_alias("output_path", output_path, "output", output)
         result, warnings, saw_quality_gate, intermediates = self._run_pipeline_steps(steps, final_output)
         if cleanup and intermediates:
-            for path in intermediates:
-                try:
-                    if os.path.exists(path):
-                        os.remove(path)
-                except OSError:
-                    pass
+            warnings.extend(self._cleanup_pipeline_intermediates(intermediates))
             result.intermediates = intermediates
         return self._finalize_pipeline_result(result, warnings, saw_quality_gate)
 
@@ -206,6 +199,20 @@ class ClientBase:
                 "pipeline produced no media output", error_type="validation_error", code="no_media_output"
             )
         return result, warnings, saw_quality_gate, intermediates
+
+    @staticmethod
+    def _cleanup_pipeline_intermediates(intermediates: list[str]) -> list[str]:
+        """Delete intermediate media files and return non-fatal cleanup warnings."""
+        import os
+
+        warnings: list[str] = []
+        for path in intermediates:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except OSError as exc:
+                warnings.append(f"Could not remove pipeline intermediate {path!r}: {exc}")
+        return warnings
 
     def _prepare_pipeline_step(
         self, step: dict[str, Any], current: str | None, final_output: str | None, is_last: bool

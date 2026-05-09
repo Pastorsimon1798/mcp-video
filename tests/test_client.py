@@ -520,6 +520,42 @@ class TestClientAgentApiConsistency:
         assert any("Stacked visual polish effects" in warning for warning in result.warnings)
         assert any("release checkpoint" in warning for warning in result.warnings)
 
+    def test_pipeline_cleanup_failure_surfaces_warning(self, editor, monkeypatch, tmp_path):
+        intermediate = tmp_path / "scene.mp4"
+        final = tmp_path / "final.mp4"
+
+        monkeypatch.setattr(
+            editor,
+            "create_from_images",
+            lambda **kwargs: editor._to_edit_result(str(intermediate), operation="create_from_images"),
+        )
+        monkeypatch.setattr(
+            editor,
+            "effect_glow",
+            lambda **kwargs: editor._to_edit_result(str(final), operation="effect_glow"),
+        )
+        monkeypatch.setattr(os.path, "exists", lambda path: path == str(intermediate))
+
+        def fail_remove(path):
+            if path == str(intermediate):
+                raise OSError("permission denied")
+            os.remove(path)
+
+        monkeypatch.setattr(os, "remove", fail_remove)
+
+        result = editor.pipeline(
+            [
+                {"op": "create_from_images", "images": ["a.png"], "output_path": str(intermediate)},
+                {"op": "effect_glow"},
+            ],
+            output_path=str(final),
+            cleanup=True,
+        )
+
+        assert result.intermediates == [str(intermediate)]
+        assert any("Could not remove pipeline intermediate" in warning for warning in result.warnings)
+        assert any("permission denied" in warning for warning in result.warnings)
+
     def test_release_checkpoint_runs_quality_then_preview_artifacts(self, editor, monkeypatch, tmp_path):
         video = tmp_path / "video.mp4"
         video.write_bytes(b"placeholder")
