@@ -7,7 +7,6 @@ They should return None so callers can record uncertainty explicitly.
 
 from __future__ import annotations
 
-import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -80,27 +79,31 @@ class TestTechnicalScoreDoesNotRewardFailure:
 
     def test_failed_luma_does_not_score_100(self, guardrails):
         """When _get_mean_luma returns None, brightness score should not be 100."""
-        with patch.object(guardrails, "_get_mean_luma", return_value=None):
-            with patch.object(guardrails, "_get_contrast", return_value=50):
-                with patch.object(guardrails, "_calculate_audio_score", return_value=50):
-                    with patch.object(guardrails, "_analyze_colors", return_value={"rgb_means": [128, 128, 128], "saturation": 50}):
-                        score = guardrails._calculate_technical_score("/tmp/test.mp4")
-                        assert score < 100, (
-                            f"Technical score should not be perfect when luma analysis "
-                            f"failed, got {score}"
-                        )
+        with (
+            patch.object(guardrails, "_get_mean_luma", return_value=None),
+            patch.object(guardrails, "_get_contrast", return_value=50),
+            patch.object(guardrails, "_calculate_audio_score", return_value=50),
+            patch.object(guardrails, "_analyze_colors", return_value={"rgb_means": [128, 128, 128], "saturation": 50}),
+        ):
+            score = guardrails._calculate_technical_score("/tmp/test.mp4")
+            assert score < 100, (
+                f"Technical score should not be perfect when luma analysis "
+                f"failed, got {score}"
+            )
 
     def test_failed_contrast_does_not_score_100(self, guardrails):
         """When _get_contrast returns None, contrast score should not be 100."""
-        with patch.object(guardrails, "_get_mean_luma", return_value=128):
-            with patch.object(guardrails, "_get_contrast", return_value=None):
-                with patch.object(guardrails, "_calculate_audio_score", return_value=50):
-                    with patch.object(guardrails, "_analyze_colors", return_value={"rgb_means": [128, 128, 128], "saturation": 50}):
-                        score = guardrails._calculate_technical_score("/tmp/test.mp4")
-                        assert score < 100, (
-                            f"Technical score should not be perfect when contrast analysis "
-                            f"failed, got {score}"
-                        )
+        with (
+            patch.object(guardrails, "_get_mean_luma", return_value=128),
+            patch.object(guardrails, "_get_contrast", return_value=None),
+            patch.object(guardrails, "_calculate_audio_score", return_value=50),
+            patch.object(guardrails, "_analyze_colors", return_value={"rgb_means": [128, 128, 128], "saturation": 50}),
+        ):
+            score = guardrails._calculate_technical_score("/tmp/test.mp4")
+            assert score < 100, (
+                f"Technical score should not be perfect when contrast analysis "
+                f"failed, got {score}"
+            )
 
 
 class TestCheckTypographyHandlesNone:
@@ -108,12 +111,14 @@ class TestCheckTypographyHandlesNone:
 
     def test_adds_issue_when_luma_is_none(self, guardrails):
         """When _get_mean_luma returns None, an advisory issue should be recorded."""
-        with patch.object(guardrails, "_get_mean_luma", return_value=None):
-            with patch.object(guardrails, "_analyze_colors", return_value={"rgb_means": [128, 128, 128], "saturation": 50}):
-                guardrails.issues = []
-                guardrails._check_typography("/tmp/test.mp4")
-                categories = [i.category for i in guardrails.issues]
-                assert "typography" in categories, (
-                    f"Expected a typography issue when luma analysis failed, "
-                    f"got categories: {categories}"
-                )
+        with (
+            patch.object(guardrails, "_get_mean_luma", return_value=None),
+            patch.object(guardrails, "_analyze_colors", return_value={"rgb_means": [128, 128, 128], "saturation": 50}),
+        ):
+            guardrails.issues = []
+            guardrails._check_typography("/tmp/test.mp4")
+            categories = [i.category for i in guardrails.issues]
+            assert "typography" in categories, (
+                f"Expected a typography issue when luma analysis failed, "
+                f"got categories: {categories}"
+            )
