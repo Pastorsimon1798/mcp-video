@@ -377,6 +377,10 @@ class TestClientValidators:
         with pytest.raises(MCPVideoError, match="style"):
             editor.mograph_progress(duration=1.0, output="/tmp/out.mp4", style="spiral")
 
+    def test_hls_segment_rejects_unknown_quality(self, editor):
+        with pytest.raises(MCPVideoError, match="qualities"):
+            editor.hls_segment("/tmp/video.mp4", qualities=["high", "cinema"])
+
     def test_convert_invalid_format(self, editor):
         with pytest.raises(MCPVideoError, match="format must be one of"):
             editor.convert("video.mp4", format="avi")

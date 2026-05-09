@@ -173,6 +173,7 @@ class ClientMediaMixin:
 
     _VALID_FORMATS: ClassVar[set[str]] = {"mp4", "webm", "gif", "mov", "hevc", "av1", "prores"}
     _VALID_QUALITIES: ClassVar[set[str]] = {"low", "medium", "high", "ultra"}
+    _VALID_HLS_QUALITIES: ClassVar[set[str]] = {"low", "medium", "high", "ultra"}
 
     def convert(
         self,
@@ -657,6 +658,14 @@ class ClientMediaMixin:
         qualities: list[str] | None = None,
     ) -> EditResult:
         """Segment a video into HLS (HTTP Live Streaming) format."""
+        if segment_duration <= 0:
+            raise MCPVideoError(
+                f"segment_duration must be positive, got {segment_duration}",
+                error_type="validation_error",
+                code="invalid_parameter",
+            )
+        for quality in qualities or []:
+            self._validate_choice("qualities", quality, self._VALID_HLS_QUALITIES)
         return _hls_segment(
             video,
             output_dir=output_dir,

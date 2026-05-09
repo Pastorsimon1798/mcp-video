@@ -8,7 +8,29 @@ from .engine_probe import probe
 from .engine_runtime_utils import _build_edit_result, _timed_operation
 from .ffmpeg_helpers import _build_ffmpeg_cmd, _run_ffmpeg
 from .ffmpeg_helpers import _validate_input_path
+from .errors import MCPVideoError
 from .models import EditResult
+
+VALID_HLS_QUALITIES = {"low", "medium", "high", "ultra"}
+HLS_HEIGHTS = {"low": 480, "medium": 720, "high": 1080, "ultra": 1080}
+
+
+def _validate_hls_options(segment_duration: int, qualities: list[str] | None) -> list[str]:
+    if segment_duration <= 0:
+        raise MCPVideoError(
+            f"segment_duration must be positive, got {segment_duration}",
+            error_type="validation_error",
+            code="invalid_parameter",
+        )
+    resolved = qualities or ["high"]
+    invalid = [quality for quality in resolved if quality not in VALID_HLS_QUALITIES]
+    if invalid:
+        raise MCPVideoError(
+            f"qualities must be one of {sorted(VALID_HLS_QUALITIES)}, got invalid values: {invalid}",
+            error_type="validation_error",
+            code="invalid_parameter",
+        )
+    return resolved
 
 
 def hls_segment(
@@ -31,6 +53,7 @@ def hls_segment(
     Returns:
         EditResult with the playlist path as ``output_path``.
     """
+    qualities = _validate_hls_options(segment_duration, qualities)
     input_path = _validate_input_path(input_path)
     _info = probe(input_path)
 
@@ -40,7 +63,6 @@ def hls_segment(
     os.makedirs(output_dir, exist_ok=True)
 
     playlist_path = os.path.join(output_dir, playlist_name)
-    qualities = qualities or ["high"]
 
     with _timed_operation() as timing:
         for quality in qualities:
@@ -48,8 +70,7 @@ def hls_segment(
             os.makedirs(q_dir, exist_ok=True)
 
             # Map quality to scale height
-            height_map = {"low": 480, "medium": 720, "high": 1080, "ultra": 1080}
-            target_h = height_map.get(quality, 1080)
+            target_h = HLS_HEIGHTS[quality]
             scale_filter = f"scale=-2:{target_h}"
 
             _run_ffmpeg(
@@ -81,8 +102,7 @@ def hls_segment(
             variant_playlist = os.path.join(q_dir, "playlist.m3u8")
             if os.path.isfile(variant_playlist):
                 # Infer bandwidth roughly from height
-                height_map = {"low": 480, "medium": 720, "high": 1080, "ultra": 1080}
-                bw = height_map.get(quality, 1080) * 3000  # rough kbps
+                bw = HLS_HEIGHTS[quality] * 3000  # rough kbps
                 master_lines.append(f"#EXT-X-STREAM-INF:BANDWIDTH={bw}")
                 master_lines.append(os.path.join(quality, "playlist.m3u8"))
         with open(playlist_path, "w") as f:

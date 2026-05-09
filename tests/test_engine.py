@@ -471,6 +471,30 @@ class TestDeinterlaceFilter:
         assert os.path.isfile(result.output_path)
 
 
+class TestHlsValidation:
+    def test_hls_rejects_unknown_quality_before_probe(self, sample_video, monkeypatch):
+        from mcp_video import engine_hls
+        from mcp_video.errors import MCPVideoError
+
+        monkeypatch.setattr(
+            engine_hls, "probe", lambda _path: (_ for _ in ()).throw(AssertionError("probe should not run"))
+        )
+
+        with pytest.raises(MCPVideoError, match="qualities"):
+            engine_hls.hls_segment(sample_video, qualities=["high", "cinema"])
+
+    def test_hls_rejects_non_positive_segment_duration_before_probe(self, sample_video, monkeypatch):
+        from mcp_video import engine_hls
+        from mcp_video.errors import MCPVideoError
+
+        monkeypatch.setattr(
+            engine_hls, "probe", lambda _path: (_ for _ in ()).throw(AssertionError("probe should not run"))
+        )
+
+        with pytest.raises(MCPVideoError, match="segment_duration"):
+            engine_hls.hls_segment(sample_video, segment_duration=0)
+
+
 class TestConvertValidation:
     def test_convert_rejects_invalid_quality_before_probe(self, sample_video, monkeypatch):
         from mcp_video import engine_convert

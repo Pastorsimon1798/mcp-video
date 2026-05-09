@@ -32,7 +32,10 @@ from .errors import MCPVideoError
 from .limits import MAX_BATCH_SIZE, MAX_EXPORT_FRAMES_FPS
 from .server_app import _result, _safe_tool, _validation_error, mcp
 from .validation import VALID_LAYOUTS, VALID_PRESETS
+
 from .ffmpeg_helpers import _validate_input_path
+
+VALID_HLS_QUALITIES = {"low", "medium", "high", "ultra"}
 
 _CLEANUP_MANAGED_SUFFIXES = (
     "_trimmed",
@@ -158,6 +161,13 @@ def video_hls_segment(
         playlist_name: Name of the master playlist file.
         qualities: List of quality levels (e.g. ["low", "medium", "high"]).
     """
+    if segment_duration <= 0:
+        return _validation_error(f"segment_duration must be positive, got {segment_duration}")
+    invalid_qualities = [quality for quality in qualities or [] if quality not in VALID_HLS_QUALITIES]
+    if invalid_qualities:
+        return _validation_error(
+            f"qualities must be one of {sorted(VALID_HLS_QUALITIES)}, got invalid values: {invalid_qualities}"
+        )
     input_path = _validate_input_path(input_path)
     return _result(
         hls_segment(

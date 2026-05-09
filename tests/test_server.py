@@ -37,6 +37,7 @@ from mcp_video.server import (
     video_extract_audio,
     video_fade,
     video_filter,
+    video_hls_segment,
     video_info,
     video_layout_grid,
     video_layout_pip,
@@ -786,6 +787,20 @@ class TestServerValidationAI:
     def test_scene_detect_rejects_bad_threshold(self, sample_video):
         result = video_ai_scene_detect(sample_video, threshold=5.0)
         assert result["success"] is False
+
+
+class TestServerValidationHls:
+    def test_rejects_bad_hls_quality_before_input_validation(self):
+        result = video_hls_segment("/tmp/missing.mp4", qualities=["high", "cinema"])
+
+        assert result["success"] is False
+        assert "qualities" in result["error"]["message"]
+
+    def test_rejects_bad_segment_duration_before_input_validation(self):
+        result = video_hls_segment("/tmp/missing.mp4", segment_duration=0)
+
+        assert result["success"] is False
+        assert "segment_duration" in result["error"]["message"]
 
 
 class TestServerValidationSplitScreen:
