@@ -129,8 +129,12 @@ def _waveform_to_dict(waveform: Any) -> dict[str, Any]:
     }
 
 
-def _placeholder_colors() -> list[Any]:
-    raise NotImplementedError("Color extraction not yet implemented")
+def _extract_video_colors(video_path: Path, n_colors: int = 5) -> dict[str, Any]:
+    """Extract dominant colors for analyze_video using the image engine's video-frame support."""
+    from ..image_engine import extract_colors
+
+    result = extract_colors(str(video_path), n_colors=n_colors)
+    return result.model_dump() if hasattr(result, "model_dump") else dict(result)
 
 
 def _build_transcript_result(
@@ -294,7 +298,7 @@ def analyze_video(
             ("scenes", include_scenes, _scenes),
             ("audio", include_audio, lambda: _waveform_to_dict(_engine.audio_waveform(str(video_path)))),
             ("chapters", include_chapters, _chapters),
-            ("colors", include_colors, _placeholder_colors),
+            ("colors", include_colors, lambda: _extract_video_colors(video_path)),
             ("quality", include_quality, lambda: _quality.quality_check(str(video_path))),
         ]
         results = {name: (_run_analysis(name, fn, errors) if flag else None) for name, flag, fn in analyses}

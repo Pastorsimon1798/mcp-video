@@ -1516,6 +1516,22 @@ def test_analyze_video_errors_are_non_fatal():
     assert "mock quality failure" in quality_errors[0]["error"]
 
 
+@requires_ffmpeg
+@requires_ffprobe
+def test_analyze_video_extracts_colors_by_default(monkeypatch):
+    """analyze_video should not swallow a NotImplemented colors placeholder."""
+    from mcp_video.ai_engine import analyze_video
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        video = create_simple_video(str(Path(tmpdir) / "test.mp4"))
+        result = analyze_video(video, include_transcript=False, include_scenes=False, include_audio=False)
+
+    assert result["success"] is True
+    assert result["colors"] is not None
+    assert result["colors"]["colors"]
+    assert not [error for error in result["errors"] if error["section"] == "colors"]
+
+
 def test_validate_analysis_output_paths_blocks_system_prefixes():
     """_validate_analysis_output_paths rejects writes to system directories."""
     from mcp_video.ai_engine import _validate_analysis_output_paths
