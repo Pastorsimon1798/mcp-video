@@ -350,6 +350,10 @@ class TestClientBatch:
         assert result["success"] is True
         assert result["succeeded"] == 1
 
+    def test_batch_unknown_operation_rejected_before_input_validation(self, editor):
+        with pytest.raises(MCPVideoError, match="Unknown operation"):
+            editor.batch(["/tmp/missing.mp4"], operation="nonexistent")
+
 
 class TestClientValidators:
     """Tests for parameter validation in the Python client."""
