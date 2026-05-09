@@ -13,6 +13,21 @@ from .errors import ProcessingError
 from .limits import DEFAULT_FFMPEG_TIMEOUT
 from .models import QualityMetricsResult
 
+SUPPORTED_QUALITY_METRICS = {"psnr", "ssim"}
+
+
+def _validate_quality_metrics(metrics: list[str] | None) -> list[str]:
+    requested_metrics = metrics or ["psnr", "ssim"]
+    resolved = [metric.lower() for metric in requested_metrics]
+    invalid = [metric for metric in resolved if metric not in SUPPORTED_QUALITY_METRICS]
+    if invalid:
+        raise ProcessingError(
+            "compare_quality",
+            1,
+            f"metrics must be one of {sorted(SUPPORTED_QUALITY_METRICS)}, got invalid values: {invalid}",
+        )
+    return resolved
+
 
 def compare_quality(
     original_path: str,
@@ -26,18 +41,11 @@ def compare_quality(
         distorted_path: Path to the distorted/processed video.
         metrics: List of metrics to compute (default: ["psnr", "ssim"]).
     """
+    supported_metrics = _validate_quality_metrics(metrics)
     original_path = _validate_input_path(original_path)
     distorted_path = _validate_input_path(distorted_path)
-    requested_metrics = metrics or ["psnr", "ssim"]
-    supported_metrics = [metric.lower() for metric in requested_metrics if metric.lower() in ("psnr", "ssim")]
 
     computed: dict[str, float] = {}
-    if not supported_metrics:
-        return QualityMetricsResult(
-            metrics=computed,
-            overall_quality="unknown",
-        )
-
     orig_info = probe(original_path)
     target_w = orig_info.width
     target_h = orig_info.height

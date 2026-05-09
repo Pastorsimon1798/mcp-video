@@ -175,6 +175,7 @@ class ClientMediaMixin:
     _VALID_FORMATS: ClassVar[set[str]] = {"mp4", "webm", "gif", "mov", "hevc", "av1", "prores"}
     _VALID_QUALITIES: ClassVar[set[str]] = {"low", "medium", "high", "ultra"}
     _VALID_HLS_QUALITIES: ClassVar[set[str]] = {"low", "medium", "high", "ultra"}
+    _VALID_QUALITY_METRICS: ClassVar[set[str]] = {"psnr", "ssim"}
 
     def convert(
         self,

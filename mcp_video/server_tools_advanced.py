@@ -37,6 +37,7 @@ from .validation import VALID_LAYOUTS, VALID_PRESETS
 from .ffmpeg_helpers import _validate_input_path
 
 VALID_HLS_QUALITIES = {"low", "medium", "high", "ultra"}
+VALID_QUALITY_METRICS = {"psnr", "ssim"}
 
 _CLEANUP_MANAGED_SUFFIXES = (
     "_trimmed",
@@ -434,6 +435,11 @@ def video_compare_quality(
         distorted_path: Absolute path to the processed/distorted video.
         metrics: Metrics to compute (default: ['psnr', 'ssim']).
     """
+    invalid_metrics = [metric for metric in metrics or [] if metric.lower() not in VALID_QUALITY_METRICS]
+    if invalid_metrics:
+        return _validation_error(
+            f"metrics must be one of {sorted(VALID_QUALITY_METRICS)}, got invalid values: {invalid_metrics}"
+        )
     original_path = _validate_input_path(original_path)
     distorted_path = _validate_input_path(distorted_path)
     return _result(compare_quality(original_path, distorted_path, metrics=metrics))
