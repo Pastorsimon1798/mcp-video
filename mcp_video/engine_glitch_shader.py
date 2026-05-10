@@ -33,8 +33,14 @@ _CRUSH_JS_DIR = Path(__file__).resolve().parent / "_crush_shader"
 _RENDER_SCRIPT = _CRUSH_JS_DIR / "render_frames.mjs"
 
 _VIDEO_ENCODE_FLAGS = [
-    "-c:a", "copy", "-c:v", "libx264",
-    "-pix_fmt", "yuv420p", "-crf", "23",
+    "-c:a",
+    "copy",
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-crf",
+    "23",
 ]
 
 
@@ -43,8 +49,7 @@ def _check_node() -> str:
     node = shutil.which("node")
     if not node:
         raise RuntimeError(
-            "Node.js is required for GPU shader effects. "
-            "Install from https://nodejs.org or run `brew install node`."
+            "Node.js is required for GPU shader effects. Install from https://nodejs.org or run `brew install node`."
         )
     return node
 
@@ -52,7 +57,10 @@ def _check_node() -> str:
 def _extract_frames(input_path: str, frames_dir: str) -> dict[str, Any]:
     """Extract video frames as PNG into frames_dir. Returns frame count."""
     cmd = [
-        "ffmpeg", "-y", "-i", input_path,
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
         os.path.join(frames_dir, "frame_%06d.png"),
     ]
     _run_command(cmd)
@@ -61,7 +69,10 @@ def _extract_frames(input_path: str, frames_dir: str) -> dict[str, Any]:
 
 
 def _assemble_video(
-    frames_dir: str, audio_path: str | None, output: str, fps: str | None = None,
+    frames_dir: str,
+    audio_path: str | None,
+    output: str,
+    fps: str | None = None,
 ) -> dict[str, Any]:
     """Assemble rendered frames back into video, muxing audio if available."""
     input_frame = os.path.join(frames_dir, "frame_%06d.png")
@@ -84,8 +95,14 @@ def _assemble_video(
 def _extract_audio(input_path: str, audio_path: str) -> bool:
     """Extract audio track from input. Returns True if audio exists."""
     cmd = [
-        "ffmpeg", "-y", "-i", input_path,
-        "-vn", "-acodec", "copy", audio_path,
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-vn",
+        "-acodec",
+        "copy",
+        audio_path,
     ]
     try:
         _run_command(cmd)
@@ -97,10 +114,16 @@ def _extract_audio(input_path: str, audio_path: str) -> bool:
 def _get_fps(input_path: str) -> str:
     """Get input video framerate."""
     cmd = [
-        "ffprobe", "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=r_frame_rate",
-        "-of", "json", input_path,
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=r_frame_rate",
+        "-of",
+        "json",
+        input_path,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     data = json.loads(result.stdout)
@@ -181,8 +204,7 @@ def _run_shader_effect(
 
         if render_result.returncode != 0:
             raise RuntimeError(
-                f"CRUSH shader render failed (exit {render_result.returncode}): "
-                f"{render_result.stderr[:500]}"
+                f"CRUSH shader render failed (exit {render_result.returncode}): {render_result.stderr[:500]}"
             )
 
         # Check rendered frames
@@ -199,6 +221,7 @@ def _run_shader_effect(
 # ---------------------------------------------------------------------------
 # Effect 10: Digital Feedback
 # ---------------------------------------------------------------------------
+
 
 def glitch_digital_feedback(
     input_path: str,
@@ -225,7 +248,9 @@ def glitch_digital_feedback(
         Dict with output path and metadata.
     """
     return _run_shader_effect(
-        "digital_feedback", input_path, output,
+        "digital_feedback",
+        input_path,
+        output,
         {
             "u_feedback_mix": feedback_mix,
             "u_scale": scale,
@@ -238,6 +263,7 @@ def glitch_digital_feedback(
 # ---------------------------------------------------------------------------
 # Effect 7: Slit-Scan
 # ---------------------------------------------------------------------------
+
 
 def glitch_slit_scan(
     input_path: str,
@@ -260,7 +286,9 @@ def glitch_slit_scan(
         Dict with output path and metadata.
     """
     return _run_shader_effect(
-        "slit_scan", input_path, output,
+        "slit_scan",
+        input_path,
+        output,
         {
             "u_depth": float(depth),
             "u_direction": float(direction),
@@ -271,6 +299,7 @@ def glitch_slit_scan(
 # ---------------------------------------------------------------------------
 # Effect 11: Depth Splatting
 # ---------------------------------------------------------------------------
+
 
 def glitch_depth_splatting(
     input_path: str,
@@ -297,7 +326,9 @@ def glitch_depth_splatting(
         Dict with output path and metadata.
     """
     return _run_shader_effect(
-        "depth_splatting", input_path, output,
+        "depth_splatting",
+        input_path,
+        output,
         {
             "u_depth_scale": depth_scale,
             "u_spread": spread,
@@ -310,6 +341,7 @@ def glitch_depth_splatting(
 # ---------------------------------------------------------------------------
 # Effect 14: Point Cloud
 # ---------------------------------------------------------------------------
+
 
 def glitch_point_cloud(
     input_path: str,
@@ -336,7 +368,9 @@ def glitch_point_cloud(
         Dict with output path and metadata.
     """
     return _run_shader_effect(
-        "point_cloud", input_path, output,
+        "point_cloud",
+        input_path,
+        output,
         {
             "u_density": density,
             "u_point_size": point_size,

@@ -27,8 +27,12 @@ _VIDEO_ENCODE_FLAGS = ["-c:a", "copy", "-c:v", "libx264", "-pix_fmt", "yuv420p",
 def _build_cmd(input_path: str, output: str, vf: str) -> list[str]:
     """Build a minimal FFmpeg command with the given video filter chain."""
     return [
-        "ffmpeg", "-y", "-i", input_path,
-        "-vf", vf,
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-vf",
+        vf,
         *_VIDEO_ENCODE_FLAGS,
         output,
     ]
@@ -37,6 +41,7 @@ def _build_cmd(input_path: str, output: str, vf: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # Effect 1: RGB Shift (effect id 1)
 # ---------------------------------------------------------------------------
+
 
 def glitch_rgb_shift(
     input_path: str,
@@ -95,6 +100,7 @@ def glitch_rgb_shift(
 # Effect 2: Scanline Jitter (effect id 6)
 # ---------------------------------------------------------------------------
 
+
 def glitch_scanline_jitter(
     input_path: str,
     output: str,
@@ -150,6 +156,7 @@ def glitch_scanline_jitter(
 # Effect 3: Screen Tearing (effect id 8)
 # ---------------------------------------------------------------------------
 
+
 def glitch_screen_tearing(
     input_path: str,
     output: str,
@@ -193,12 +200,7 @@ def glitch_screen_tearing(
 
     displacement = "+".join(tear_exprs) if tear_exprs else "0"
 
-    vf = (
-        f"geq="
-        f"r='p(X+({displacement}),Y)':"
-        f"g='p(X+({displacement}),Y)':"
-        f"b='p(X+({displacement}),Y)'"
-    )
+    vf = f"geq=r='p(X+({displacement}),Y)':g='p(X+({displacement}),Y)':b='p(X+({displacement}),Y)'"
 
     cmd = _build_cmd(input_path, output, vf)
     _run_command(cmd)
@@ -208,6 +210,7 @@ def glitch_screen_tearing(
 # ---------------------------------------------------------------------------
 # Effect 4: VHS Tracking (effect id 5)
 # ---------------------------------------------------------------------------
+
 
 def glitch_vhs_tracking(
     input_path: str,
@@ -268,6 +271,7 @@ def glitch_vhs_tracking(
 # Effect 5: Macroblocking (effect id 3)
 # ---------------------------------------------------------------------------
 
+
 def glitch_macroblocking(
     input_path: str,
     output: str,
@@ -320,6 +324,7 @@ def glitch_macroblocking(
 # Effect 6: Datamoshing (effect id 4)
 # ---------------------------------------------------------------------------
 
+
 def glitch_datamoshing(
     input_path: str,
     output: str,
@@ -368,6 +373,7 @@ def glitch_datamoshing(
 # ---------------------------------------------------------------------------
 # Effect 7: CMYK Split (effect id 13)
 # ---------------------------------------------------------------------------
+
 
 def glitch_cmyk_split(
     input_path: str,
@@ -429,18 +435,10 @@ def glitch_cmyk_split(
             f"bv='({bv:.2f}+{noise_px:.2f}*(random(5)*2-1))'"
         )
     else:
-        rgbashift = (
-            f"rgbashift="
-            f"rh={rh:.2f}:rv={rv:.2f}:"
-            f"gh={gh:.2f}:gv={gv:.2f}:"
-            f"bh={bh:.2f}:bv={bv:.2f}"
-        )
+        rgbashift = f"rgbashift=rh={rh:.2f}:rv={rv:.2f}:gh={gh:.2f}:gv={gv:.2f}:bh={bh:.2f}:bv={bv:.2f}"
 
     # Boost color saturation to enhance the CMYK print look
-    vf = (
-        f"{rgbashift},"
-        f"colorbalance=rs=0.05:bs=-0.03:gh=0.03"
-    )
+    vf = f"{rgbashift},colorbalance=rs=0.05:bs=-0.03:gh=0.03"
 
     cmd = _build_cmd(input_path, output, vf)
     _run_command(cmd)
@@ -450,6 +448,7 @@ def glitch_cmyk_split(
 # ---------------------------------------------------------------------------
 # Effect 8: Turbulent Displacement (effect id 9)
 # ---------------------------------------------------------------------------
+
 
 def glitch_turbulent_displacement(
     input_path: str,
@@ -488,8 +487,8 @@ def glitch_turbulent_displacement(
     dx_terms: list[str] = []
     dy_terms: list[str] = []
     for i in range(octaves):
-        freq = scale * (2 ** i)
-        amp = 1.0 / (2 ** i)
+        freq = scale * (2**i)
+        amp = 1.0 / (2**i)
         t_offset = i * 1.7  # phase offset per octave for variety
         dx_terms.append(f"sin(X*{freq:.4f}+Y*{freq * 0.7:.4f}+T*{speed:.1f}+{t_offset:.1f})*{amp:.3f}")
         dy_terms.append(f"cos(X*{freq * 0.8:.4f}+Y*{freq:.4f}+T*{speed:.1f}+{t_offset + 0.5:.1f})*{amp:.3f}")
