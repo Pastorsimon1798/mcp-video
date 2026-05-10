@@ -76,7 +76,7 @@ def _assemble_video(
     if audio_path and os.path.exists(audio_path):
         cmd += ["-i", audio_path, "-map", "0:v", "-map", "1:a"]
 
-    cmd += _VIDEO_ENCODE_FLAGS + [output]
+    cmd += [*_VIDEO_ENCODE_FLAGS, output]
     _run_command(cmd)
     return {"output": output}
 

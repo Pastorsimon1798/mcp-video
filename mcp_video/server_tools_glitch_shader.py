@@ -11,7 +11,7 @@ from typing import Any
 from .errors import MCPVideoError
 from .ffmpeg_helpers import _validate_input_path
 from .paths import _auto_output
-from .server_app import _result, _safe_tool, _validation_error, mcp
+from .server_app import _result, _safe_tool, mcp
 
 
 # ---------------------------------------------------------------------------
