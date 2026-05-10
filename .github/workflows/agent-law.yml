@@ -11,7 +11,8 @@ permissions:
 jobs:
   agent-law:
     name: agent-law
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
