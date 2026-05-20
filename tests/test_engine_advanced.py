@@ -974,6 +974,20 @@ class TestImageSequences:
         assert _format_fps_for_ffmpeg(29.97002997) == "29.97002997"
         assert _format_fps_for_ffmpeg(12.00001) == "12.00001"
 
+    def test_create_from_images_extreme_fps_raises_validation_error(self):
+        from mcp_video.engine import create_from_images
+        from mcp_video.engine_images import _format_fps_for_ffmpeg
+
+        with pytest.raises(MCPVideoError, match="fps must be a positive finite number") as helper_exc:
+            _format_fps_for_ffmpeg(10**400)
+        assert helper_exc.value.error_type == "validation_error"
+        assert helper_exc.value.code == "invalid_parameter"
+
+        with pytest.raises(MCPVideoError, match="fps must be a positive finite number") as create_exc:
+            create_from_images(["/nonexistent/image.jpg"], fps=10**400)
+        assert create_exc.value.error_type == "validation_error"
+        assert create_exc.value.code == "invalid_parameter"
+
     def test_create_from_images_passes_precise_non_integer_fps_to_ffmpeg(self, tmp_path, monkeypatch):
         from mcp_video import engine_images
         from mcp_video.models import EditResult

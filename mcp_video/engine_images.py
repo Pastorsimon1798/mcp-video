@@ -27,14 +27,9 @@ def create_from_images(
             error_type="validation_error",
             code="empty_images",
         )
-    if fps <= 0 or not math.isfinite(fps):
-        raise MCPVideoError(
-            f"fps must be a positive finite number, got {fps}",
-            error_type="validation_error",
-            code="invalid_parameter",
-        )
+    fps_value = _coerce_positive_finite_fps(fps)
     validated_images = [_validate_input_path(img) for img in images]
-    fps_arg = _format_fps_for_ffmpeg(fps)
+    fps_arg = _format_fps_for_ffmpeg(fps_value)
 
     output = output_path or _auto_output(images[0], "from_images")
     _validate_output_path(output)
@@ -42,7 +37,7 @@ def create_from_images(
         tmpdir = tempfile.mkdtemp(prefix="mcp_video_imgseq_")
         try:
             normalized = _normalize_images(validated_images, tmpdir)
-            concat_file = _write_concat_file(normalized, tmpdir, fps)
+            concat_file = _write_concat_file(normalized, tmpdir, fps_value)
             _run_ffmpeg(
                 [
                     "-f",
@@ -74,10 +69,28 @@ def create_from_images(
 
 def _format_fps_for_ffmpeg(fps: float) -> str:
     """Serialize FPS without rounding non-integer values before FFmpeg sees them."""
-    fps_value = float(fps)
+    fps_value = _coerce_positive_finite_fps(fps)
     if fps_value.is_integer():
         return str(int(fps_value))
     return repr(fps_value)
+
+
+def _coerce_positive_finite_fps(fps: float) -> float:
+    try:
+        fps_value = float(fps)
+    except (OverflowError, TypeError, ValueError) as exc:
+        raise MCPVideoError(
+            f"fps must be a positive finite number, got {fps}",
+            error_type="validation_error",
+            code="invalid_parameter",
+        ) from exc
+    if fps_value <= 0 or not math.isfinite(fps_value):
+        raise MCPVideoError(
+            f"fps must be a positive finite number, got {fps}",
+            error_type="validation_error",
+            code="invalid_parameter",
+        )
+    return fps_value
 
 
 def _normalize_images(images: list[str], tmpdir: str) -> list[str]:
