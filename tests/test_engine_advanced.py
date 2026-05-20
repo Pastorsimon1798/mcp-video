@@ -934,6 +934,37 @@ class TestImageSequences:
         assert os.path.isfile(result.output_path)
         assert result.operation == "create_from_images"
 
+    def test_create_from_images_sets_requested_output_fps(self, sample_video, tmp_path):
+        from mcp_video.engine import create_from_images
+        from mcp_video.engine import export_frames
+
+        frames_dir = str(tmp_path / "fps_frames")
+        frames_result = export_frames(sample_video, output_dir=frames_dir, fps=4.0)
+        assert len(frames_result.frame_paths) > 0
+
+        out = str(tmp_path / "from_images_12fps.mp4")
+        result = create_from_images(frames_result.frame_paths, output_path=out, fps=12.0)
+
+        probe_result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=r_frame_rate",
+                "-of",
+                "default=nw=1:nk=1",
+                result.output_path,
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        assert probe_result.stdout.strip() == "12/1"
+
     def test_create_from_images_empty_raises(self):
         from mcp_video.engine import create_from_images
 

@@ -53,6 +53,8 @@ def create_from_images(
                     "-c:v",
                     "libx264",
                     *_quality_args(),
+                    "-r",
+                    f"{fps:g}",
                     "-pix_fmt",
                     "yuv420p",
                     *_movflags_args(output),
