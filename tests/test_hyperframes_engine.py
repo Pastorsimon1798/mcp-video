@@ -1,6 +1,7 @@
 """Tests for the Hyperframes engine."""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -73,7 +74,9 @@ def _mock_deps_ok():
 
 
 def _has_real_hyperframes_cli() -> bool:
-    """Return True only when the same package-resolving Hyperframes CLI path works."""
+    """Return True only when explicit integration runs should probe Hyperframes."""
+    if os.environ.get("MCP_VIDEO_RUN_HYPERFRAMES_INTEGRATION") != "1":
+        return False
     try:
         result = subprocess.run(
             ["npx", "--yes", "hyperframes", "--version"],
