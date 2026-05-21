@@ -24,7 +24,7 @@ from .errors import (
     HyperframesRenderError,
     MCPVideoError,
 )
-from .ffmpeg_helpers import _validate_output_path
+from .ffmpeg_helpers import _validate_input_path, _validate_output_path
 from .hyperframes_models import (
     CompositionInfo,
     CompositionsResult,
@@ -396,6 +396,13 @@ def _format_cli_value(value: Any) -> str:
     return str(value)
 
 
+def _validate_variables_file(path: str | os.PathLike[str] | None) -> str | None:
+    """Validate optional runtime-data files before forwarding them to Hyperframes."""
+    if path is None:
+        return None
+    return _validate_input_path(str(path))
+
+
 def _post_process_ops() -> dict[str, Callable]:
     """Return the post-processing operation registry for render_and_post."""
     from . import engine as _video_engine
@@ -559,6 +566,7 @@ def render(
         output_path = _default_render_output(project_path, format)
 
     effective_resolution = _resolve_render_resolution(width, height, resolution)
+    variables_file = _validate_variables_file(variables_file)
 
     start_time = time.time()
     _result, _project = _hyperframes_op(
@@ -747,6 +755,7 @@ def snapshot(
     snapshot_dir = project / "snapshots"
     before = set(snapshot_dir.glob("*.png")) if snapshot_dir.is_dir() else set()
     at_csv = _csv(at)
+    variables_file = _validate_variables_file(variables_file)
     _hyperframes_op(
         "snapshot",
         project_path=project_path,
