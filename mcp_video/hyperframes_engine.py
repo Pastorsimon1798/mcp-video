@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import time
 import contextlib
+import html
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,14 @@ HYPERFRAMES_COMMAND_ENV = "MCP_VIDEO_HYPERFRAMES_COMMAND"
 HYPERFRAMES_COMMAND_PREFIX = ["hyperframes"]
 _HYPERFRAMES_BINARY_NAMES = ("hyperframes", "hyperframes.cmd")
 _WINDOWS_COMMAND_PATH_RE = re.compile(r"^([A-Za-z]:\\.*?\.(?:bat|cmd|exe|ps1))(?=\s|$)", re.IGNORECASE)
+_COMPOSITION_TAG_RE = re.compile(
+    r"<[^>]*\bdata-composition-id\s*=\s*(['\"])(?P<id>.*?)\1[^>]*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_DATA_ATTR_RE = re.compile(
+    r"\b(?P<name>data-[\w-]+)\s*=\s*(['\"])(?P<value>.*?)\2",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -737,6 +746,36 @@ def _parse_compositions_output(stdout: str) -> list[dict[str, Any]]:
     return comps
 
 
+def _composition_html_metadata(project: Path) -> dict[str, dict[str, Any]]:
+    metadata: dict[str, dict[str, Any]] = {}
+    for html_path in project.rglob("*.html"):
+        if "node_modules" in html_path.parts:
+            continue
+        with contextlib.suppress(OSError, UnicodeDecodeError):
+            content = html_path.read_text(encoding="utf-8")
+            for tag_match in _COMPOSITION_TAG_RE.finditer(content):
+                attrs = {
+                    attr.group("name").lower(): html.unescape(attr.group("value").strip())
+                    for attr in _DATA_ATTR_RE.finditer(tag_match.group(0))
+                }
+                comp_id = attrs.get("data-composition-id") or html.unescape(tag_match.group("id").strip())
+                if not comp_id:
+                    continue
+
+                item: dict[str, Any] = {}
+                if duration := attrs.get("data-duration") or attrs.get("data-duration-seconds"):
+                    item["_html_duration"] = duration
+                if fps := attrs.get("data-fps"):
+                    item["_html_fps"] = fps
+                if width := attrs.get("data-width"):
+                    item["_html_width"] = width
+                if height := attrs.get("data-height"):
+                    item["_html_height"] = height
+                if item:
+                    metadata[comp_id] = item
+    return metadata
+
+
 def _coerce_float(value: Any) -> float | None:
     with contextlib.suppress(TypeError, ValueError):
         return float(value)
@@ -744,13 +783,15 @@ def _coerce_float(value: Any) -> float | None:
 
 
 def _composition_duration_frames(data: dict[str, Any]) -> int:
-    fps = _coerce_float(data.get("fps")) or 30.0
+    fps = _coerce_float(data.get("fps", data.get("_html_fps"))) or 30.0
     frame_value = data.get("durationInFrames", data.get("duration_in_frames"))
     frames = _coerce_float(frame_value)
     if frames and frames > 0:
         return round(frames)
 
     seconds = _coerce_float(data.get("durationInSeconds", data.get("duration")))
+    if not seconds:
+        seconds = _coerce_float(data.get("_html_duration"))
     if seconds and seconds > 0:
         return round(seconds * fps)
 
@@ -764,17 +805,20 @@ def compositions(
     result, project = _hyperframes_op("compositions", project_path=project_path)
 
     raw = _parse_compositions_output(result.stdout)
+    html_metadata = _composition_html_metadata(project)
 
     comp_list = []
     for c in raw:
+        comp_id = str(c.get("id", c.get("compositionId", "")))
+        merged = {**html_metadata.get(comp_id, {}), **c}
         comp_list.append(
             CompositionInfo(
-                id=c.get("id", c.get("compositionId", "")),
-                width=c.get("width", 1920),
-                height=c.get("height", 1080),
-                fps=c.get("fps", 30),
-                duration_in_frames=_composition_duration_frames(c),
-                default_props=c.get("defaultProps", {}),
+                id=comp_id,
+                width=merged.get("width", merged.get("_html_width", 1920)),
+                height=merged.get("height", merged.get("_html_height", 1080)),
+                fps=merged.get("fps", merged.get("_html_fps", 30)),
+                duration_in_frames=_composition_duration_frames(merged),
+                default_props=merged.get("defaultProps", {}),
             )
         )
 
