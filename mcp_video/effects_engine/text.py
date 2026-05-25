@@ -487,10 +487,9 @@ def text_animated(
     try:
         video_w, video_h = _get_video_dimensions(video)
         from ..engine_probe import probe as _probe
+
         vid_info = _probe(video)
-        timing_warnings = _validate_timing_against_duration(
-            start, duration, vid_info.duration
-        )
+        timing_warnings = _validate_timing_against_duration(start, duration, vid_info.duration)
         for w in timing_warnings:
             _warnings.warn(f"[TEXT GUARDRAIL] {w}", stacklevel=2)
         # Text overflow check

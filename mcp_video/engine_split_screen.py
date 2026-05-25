@@ -69,8 +69,8 @@ def split_screen(
                 "Only left audio is mapped; right audio will be lost.",
                 stacklevel=2,
             )
-    except Exception:
-        pass  # Best-effort guardrails
+    except Exception as e:
+        _warnings.warn(f"[SPLIT GUARDRAIL] Could not validate split-screen inputs: {e}", stacklevel=2)
     # --- End guardrails ---
 
     filter_complex = _split_filter(left_info.width, left_info.height, right_info.width, right_info.height, layout)

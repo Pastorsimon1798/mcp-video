@@ -87,8 +87,8 @@ def layout_grid(
                 f"{max_dur:.1f}s. Output will be truncated to shortest clip.",
                 stacklevel=2,
             )
-    except Exception:
-        pass  # Best-effort duration check
+    except Exception as e:
+        logger.warning("Could not validate grid durations: %s", e)
     # --- End guardrails ---
 
     n_clips = min(len(clips), n_cells)

@@ -28,7 +28,21 @@ VALID_XFADE_TRANSITIONS = {
     "smoothdown",
 }
 VALID_WAVEFORMS = {"sine", "square", "sawtooth", "triangle", "noise", "pulse", "supersaw", "pluck", "fm"}
-VALID_AUDIO_EFFECT_TYPES = {"lowpass", "highpass", "reverb", "normalize", "fade", "delay", "chorus", "flanger", "distortion", "compressor", "eq", "tremolo", "vibrato"}
+VALID_AUDIO_EFFECT_TYPES = {
+    "lowpass",
+    "highpass",
+    "reverb",
+    "normalize",
+    "fade",
+    "delay",
+    "chorus",
+    "flanger",
+    "distortion",
+    "compressor",
+    "eq",
+    "tremolo",
+    "vibrato",
+}
 VALID_SPATIAL_METHODS = {"hrtf", "panning"}
 VALID_MOGRAPH_STYLES = {"bar", "circle", "dots"}
 VALID_LAYOUTS = {"side-by-side", "top-bottom"}
@@ -279,14 +293,12 @@ def _validate_timing_against_duration(
     warnings: list[str] = []
     if start_time is not None and start_time > video_duration:
         warnings.append(
-            f"start_time={start_time}s exceeds video duration "
-            f"({video_duration:.2f}s). Overlay will never appear."
+            f"start_time={start_time}s exceeds video duration ({video_duration:.2f}s). Overlay will never appear."
         )
     if start_time is not None and duration is not None:
         end = start_time + duration
         if end > video_duration:
             warnings.append(
-                f"Overlay ends at {end:.2f}s, past video duration "
-                f"({video_duration:.2f}s). It will disappear early."
+                f"Overlay ends at {end:.2f}s, past video duration ({video_duration:.2f}s). It will disappear early."
             )
     return warnings

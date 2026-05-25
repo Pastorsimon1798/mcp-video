@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings as _warnings
+
 from .engine_runtime_utils import (
     _build_edit_result,
     _require_filter,
@@ -62,14 +64,11 @@ def overlay_video(
     # --- Guardrail: timing validation ---
     try:
         bg_info = probe(background_path)
-        timing_warnings = _validate_timing_against_duration(
-            start_time, duration, bg_info.duration
-        )
+        timing_warnings = _validate_timing_against_duration(start_time, duration, bg_info.duration)
         for w in timing_warnings:
-            import warnings as _warnings
             _warnings.warn(f"[OVERLAY GUARDRAIL] {w}", stacklevel=2)
-    except Exception:
-        pass  # Best-effort; probe may fail or timing may be None
+    except Exception as e:
+        _warnings.warn(f"[OVERLAY GUARDRAIL] Could not validate timing: {e}", stacklevel=2)
     # --- End guardrail ---
 
     scale_filter = _scale_filter(width, height)
@@ -159,6 +158,8 @@ def _overlay_position(position: Position) -> str:
 def _enable_expression(start_time: float | None, duration: float | None) -> str:
     if start_time is None and duration is None:
         return ""
+    safe_start = "0"
+    safe_duration = "0"
     if start_time is not None:
         safe_start = _escape_ffmpeg_filter_value(str(_sanitize_ffmpeg_number(start_time, "start_time")))
     if duration is not None:

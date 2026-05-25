@@ -144,8 +144,10 @@ def add_audio(
     try:
         audio_info = probe(audio_path)
         mix_warnings = validate_audio_mix(
-            video_info, audio_info,
-            volume=volume, start_time=start_time or 0.0,
+            video_info,
+            audio_info,
+            volume=volume,
+            start_time=start_time or 0.0,
         )
         for w in mix_warnings:
             _warnings.warn(f"[AUDIO GUARDRAIL] {w}", stacklevel=2)

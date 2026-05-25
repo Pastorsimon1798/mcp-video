@@ -3,7 +3,6 @@
 import pytest
 
 
-
 class TestLayoutGridGuardrails:
     @pytest.mark.skip("Requires multiple video fixtures with probing")
     def test_excess_clips_warns(self):
