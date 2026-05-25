@@ -1,6 +1,6 @@
-"""Audio synthesis and sound design engine.
+"""Audio sequencing, composition, and effects engine.
 
-Pure NumPy-based audio generation with no external dependencies.
+NumPy-aware mixing with stereo support.
 """
 
 from __future__ import annotations
@@ -15,14 +15,27 @@ from ..validation import VALID_AUDIO_EFFECT_TYPES, VALID_AUDIO_SEQUENCE_TYPES, V
 from .core import (
     _float_to_pcm,
     _pcm_to_float,
+    apply_chorus,
+    apply_compressor,
+    apply_delay,
+    apply_distortion,
+    apply_eq,
     apply_fade,
+    apply_flanger,
     apply_highpass,
     apply_lowpass,
     apply_reverb,
+    apply_tremolo,
+    apply_vibrato,
+    generate_colored_noise,
+    generate_fm,
     generate_noise,
+    generate_pluck,
+    generate_pulse,
     generate_sawtooth,
     generate_sine,
     generate_square,
+    generate_supersaw,
     generate_triangle,
     write_wav,
 )
@@ -35,6 +48,77 @@ from .synthesis import audio_preset
 DEFAULT_SAMPLE_RATE = 44100
 DEFAULT_CHANNELS = 1
 DEFAULT_SAMPLE_WIDTH = 2  # 16-bit
+
+
+def _normalize_mix(mix_buffer: Any) -> Any:
+    """Normalize mixed audio to prevent clipping."""
+    try:
+        import numpy as np
+
+        if isinstance(mix_buffer, np.ndarray):
+            max_val = np.max(np.abs(mix_buffer))
+            if max_val > 1.0:
+                return mix_buffer / max_val * 0.95
+            return mix_buffer
+    except ImportError:
+        pass
+
+    # Pure-python fallback
+    max_val = max(abs(s) for s in mix_buffer) if mix_buffer else 1
+    if max_val > 1:
+        return [s / max_val * 0.95 for s in mix_buffer]
+    return mix_buffer
+
+
+def _make_mix_buffer(total_samples: int, channels: int = 1) -> Any:
+    """Create a silent mix buffer (numpy array if available)."""
+    try:
+        import numpy as np
+
+        if channels > 1:
+            return np.zeros((total_samples, channels), dtype=np.float64)
+        return np.zeros(total_samples, dtype=np.float64)
+    except ImportError:
+        if channels > 1:
+            return [[0.0] * channels for _ in range(total_samples)]
+        return [0.0] * total_samples
+
+
+def _mix_into_buffer(mix_buffer: Any, samples: Any, start_sample: int, volume: float = 1.0) -> Any:
+    """Add samples into mix buffer at start_sample with volume scaling."""
+    try:
+        import numpy as np
+
+        if isinstance(mix_buffer, np.ndarray):
+            # Convert list samples to numpy array if needed
+            if isinstance(samples, list):
+                samples = np.array(samples, dtype=np.float64)
+            end = min(start_sample + len(samples), len(mix_buffer))
+            slice_len = end - start_sample
+            if slice_len <= 0:
+                return mix_buffer
+            if mix_buffer.ndim == 2 and samples.ndim == 2:
+                mix_buffer[start_sample:end] += samples[:slice_len] * volume
+            elif mix_buffer.ndim == 1 and samples.ndim == 1:
+                mix_buffer[start_sample:end] += samples[:slice_len] * volume
+            elif mix_buffer.ndim == 2 and samples.ndim == 1:
+                # Broadcast mono into stereo
+                mix_buffer[start_sample:end, 0] += samples[:slice_len] * volume
+                mix_buffer[start_sample:end, 1] += samples[:slice_len] * volume
+            return mix_buffer
+    except ImportError:
+        pass
+
+    # Pure-python fallback
+    for i in range(len(samples)):
+        idx = start_sample + i
+        if idx < len(mix_buffer):
+            if isinstance(mix_buffer[idx], list):
+                mix_buffer[idx][0] += samples[i] * volume
+                mix_buffer[idx][1] += samples[i] * volume
+            else:
+                mix_buffer[idx] += samples[i] * volume
+    return mix_buffer
 
 
 def _validate_audio_sequence(sequence: list[dict[str, Any]]) -> None:
@@ -84,10 +168,41 @@ def _validate_audio_sequence(sequence: list[dict[str, Any]]) -> None:
                 )
 
 
+def _generate_waveform(
+    waveform: str,
+    frequency: float,
+    duration: float,
+    sample_rate: int,
+    volume: float,
+) -> bytes:
+    """Generate raw PCM bytes for a waveform."""
+    if waveform == "sine":
+        return generate_sine(frequency, duration, sample_rate, volume)
+    elif waveform == "square":
+        return generate_square(frequency, duration, sample_rate, volume)
+    elif waveform == "sawtooth":
+        return generate_sawtooth(frequency, duration, sample_rate, volume)
+    elif waveform == "triangle":
+        return generate_triangle(frequency, duration, sample_rate, volume)
+    elif waveform == "noise":
+        return generate_noise(duration, sample_rate, volume)
+    elif waveform == "pulse":
+        return generate_pulse(frequency, duration, sample_rate, volume)
+    elif waveform == "supersaw":
+        return generate_supersaw(frequency, duration, sample_rate, volume)
+    elif waveform == "pluck":
+        return generate_pluck(frequency, duration, sample_rate, volume)
+    elif waveform == "fm":
+        return generate_fm(frequency, duration, sample_rate, volume)
+    else:
+        raise MCPVideoError(f"Unknown waveform: {waveform}", error_type="validation_error", code="invalid_parameter")
+
+
 def audio_sequence(
     sequence: list[dict[str, Any]],
     output: str,
     sample_rate: int = DEFAULT_SAMPLE_RATE,
+    stereo: bool = False,
 ) -> str:
     """Compose multiple audio events into a timed sequence.
 
@@ -101,6 +216,7 @@ def audio_sequence(
             - Other parameters as needed
         output: Output WAV file path
         sample_rate: Sample rate
+        stereo: Output stereo WAV
 
     Returns:
         Path to generated WAV file
@@ -110,9 +226,9 @@ def audio_sequence(
     # Calculate total duration
     max_end = max(event.get("at", 0) + event.get("duration", 1.0) for event in sequence)
     total_samples = int(max_end * sample_rate)
+    channels = 2 if stereo else 1
 
-    # Initialize silent buffer
-    mix_buffer = [0.0] * total_samples
+    mix_buffer = _make_mix_buffer(total_samples, channels)
 
     for event in sequence:
         start_time = event.get("at", 0)
@@ -120,29 +236,16 @@ def audio_sequence(
         event_type = event.get("type", "tone")
 
         start_sample = int(start_time * sample_rate)
-        int(duration * sample_rate)
 
         # Generate based on type
         if event_type == "tone":
             freq = event.get("freq") or event.get("frequency", 440)
             volume = event.get("volume", 0.3)
             waveform = event.get("waveform", "sine")
-
-            if waveform == "sine":
-                pcm = generate_sine(freq, duration, sample_rate, volume)
-            elif waveform == "square":
-                pcm = generate_square(freq, duration, sample_rate, volume)
-            elif waveform == "sawtooth":
-                pcm = generate_sawtooth(freq, duration, sample_rate, volume)
-            elif waveform == "triangle":
-                pcm = generate_triangle(freq, duration, sample_rate, volume)
-            elif waveform == "noise":
-                pcm = generate_noise(duration, sample_rate, volume)
-
+            pcm = _generate_waveform(waveform, freq, duration, sample_rate, volume)
             samples = _pcm_to_float(pcm)
 
         elif event_type == "preset":
-            # Create temp file and read back
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp_path = tmp.name
 
@@ -161,26 +264,19 @@ def audio_sequence(
                 Path(tmp_path).unlink(missing_ok=True)
 
         elif event_type == "whoosh":
-            # Simple whoosh using filtered noise
-            event.get("direction", "up")
             volume = event.get("volume", 0.3)
             pcm = generate_noise(duration, sample_rate, volume)
             samples = _pcm_to_float(pcm)
             samples = apply_lowpass(samples, 2000, sample_rate)
 
         # Mix into buffer
-        for i, sample in enumerate(samples):
-            idx = start_sample + i
-            if idx < len(mix_buffer):
-                mix_buffer[idx] += sample
+        _mix_into_buffer(mix_buffer, samples, start_sample)
 
-    # Normalize to prevent clipping
-    max_val = max(abs(s) for s in mix_buffer) if mix_buffer else 1
-    if max_val > 1:
-        mix_buffer = [s / max_val for s in mix_buffer]
+    # Normalize
+    mix_buffer = _normalize_mix(mix_buffer)
 
     pcm_data = _float_to_pcm(mix_buffer)
-    return write_wav(pcm_data, output, sample_rate)
+    return write_wav(pcm_data, output, sample_rate, channels=channels)
 
 
 def _validate_audio_compose_tracks(tracks: list[dict[str, Any]], duration: float) -> None:
@@ -230,7 +326,7 @@ def audio_compose(
     _validate_audio_compose_tracks(tracks, duration)
 
     total_samples = int(duration * sample_rate)
-    mix_buffer = [0.0] * total_samples
+    mix_buffer = _make_mix_buffer(total_samples, channels=1)
 
     for track in tracks:
         file_path = track.get("file")
@@ -265,18 +361,16 @@ def audio_compose(
             for i in range(total_samples - start_sample):
                 idx = start_sample + i
                 sample_idx = i % len(track_samples)
-                if idx < len(mix_buffer):
-                    mix_buffer[idx] += track_samples[sample_idx] * volume
+                if idx < total_samples:
+                    _mix_into_buffer(mix_buffer, [track_samples[sample_idx] * volume], idx)
         else:
             for i, sample in enumerate(track_samples):
                 idx = start_sample + i
-                if idx < len(mix_buffer):
-                    mix_buffer[idx] += sample * volume
+                if idx < total_samples:
+                    _mix_into_buffer(mix_buffer, [sample * volume], idx)
 
     # Normalize
-    max_val = max(abs(s) for s in mix_buffer) if mix_buffer else 1
-    if max_val > 1:
-        mix_buffer = [s / max_val * 0.95 for s in mix_buffer]  # Leave headroom
+    mix_buffer = _normalize_mix(mix_buffer)
 
     pcm_data = _float_to_pcm(mix_buffer)
     return write_wav(pcm_data, output, sample_rate)
@@ -315,7 +409,7 @@ def audio_effects(
         input_path: Input WAV file path
         output: Output WAV file path
         effects: List of effect configs with:
-            - type: "lowpass", "highpass", "reverb", "normalize"
+            - type: effect name
             - Additional parameters per effect type
 
     Returns:
@@ -339,23 +433,108 @@ def audio_effects(
             cutoff = effect.get("frequency", 2000)
             samples = apply_lowpass(samples, cutoff, sample_rate)
 
+        elif effect_type == "highpass":
+            cutoff = effect.get("frequency", 200)
+            samples = apply_highpass(samples, cutoff, sample_rate)
+
         elif effect_type == "reverb":
             room_size = effect.get("room_size", 0.5)
             damping = effect.get("damping", 0.5)
             wet_level = effect.get("wet_level", 0.2)
-            samples = apply_reverb(samples, room_size, damping, wet_level)
+            samples = apply_reverb(samples, room_size, damping, wet_level, sample_rate)
+
+        elif effect_type == "delay":
+            samples = apply_delay(
+                samples,
+                delay_time=effect.get("delay_time", 0.3),
+                feedback=effect.get("feedback", 0.4),
+                mix=effect.get("mix", 0.3),
+                sample_rate=sample_rate,
+            )
+
+        elif effect_type == "chorus":
+            samples = apply_chorus(
+                samples,
+                rate=effect.get("rate", 1.5),
+                depth=effect.get("depth", 0.002),
+                voices=effect.get("voices", 3),
+                mix=effect.get("mix", 0.5),
+                sample_rate=sample_rate,
+            )
+
+        elif effect_type == "flanger":
+            samples = apply_flanger(
+                samples,
+                rate=effect.get("rate", 0.5),
+                depth=effect.get("depth", 0.003),
+                feedback=effect.get("feedback", 0.5),
+                mix=effect.get("mix", 0.5),
+                sample_rate=sample_rate,
+            )
+
+        elif effect_type == "distortion":
+            samples = apply_distortion(
+                samples,
+                drive=effect.get("drive", 0.5),
+                tone=effect.get("tone", 0.5),
+                type_=effect.get("type", "soft"),
+                sample_rate=sample_rate,
+            )
+
+        elif effect_type == "compressor":
+            samples = apply_compressor(
+                samples,
+                threshold=effect.get("threshold", 0.5),
+                ratio=effect.get("ratio", 4.0),
+                attack=effect.get("attack", 0.01),
+                release=effect.get("release", 0.1),
+                makeup=effect.get("makeup", 1.0),
+                sample_rate=sample_rate,
+            )
+
+        elif effect_type == "eq":
+            samples = apply_eq(
+                samples,
+                low_gain=effect.get("low_gain", 0.0),
+                mid_gain=effect.get("mid_gain", 0.0),
+                high_gain=effect.get("high_gain", 0.0),
+                low_freq=effect.get("low_freq", 200.0),
+                high_freq=effect.get("high_freq", 4000.0),
+                sample_rate=sample_rate,
+            )
+
+        elif effect_type == "tremolo":
+            samples = apply_tremolo(
+                samples,
+                rate=effect.get("rate", 5.0),
+                depth=effect.get("depth", 0.5),
+                sample_rate=sample_rate,
+            )
+
+        elif effect_type == "vibrato":
+            samples = apply_vibrato(
+                samples,
+                rate=effect.get("rate", 5.0),
+                depth=effect.get("depth", 0.003),
+                sample_rate=sample_rate,
+            )
 
         elif effect_type == "normalize":
-            max_val = max(abs(s) for s in samples) if samples else 1
-            if max_val > 0:
-                effect.get("target_lufs", -16)
-                # Simple linear normalization (LUFS would require more complex analysis)
-                gain = 0.5 / max_val  # Approximate -6dB as baseline
-                samples = [s * gain for s in samples]
+            try:
+                import numpy as np
 
-        elif effect_type == "highpass":
-            cutoff = effect.get("frequency", 200)
-            samples = apply_highpass(samples, cutoff, sample_rate)
+                if isinstance(samples, np.ndarray):
+                    max_val = np.max(np.abs(samples))
+                    if max_val > 0:
+                        samples = samples / max_val * 0.95
+                else:
+                    max_val = max(abs(s) for s in samples) if samples else 1
+                    if max_val > 0:
+                        samples = [s / max_val * 0.95 for s in samples]
+            except ImportError:
+                max_val = max(abs(s) for s in samples) if samples else 1
+                if max_val > 0:
+                    samples = [s / max_val * 0.95 for s in samples]
 
         elif effect_type == "fade":
             fade_in = effect.get("fade_in", 0)
@@ -366,8 +545,3 @@ def audio_effects(
     # Write output
     pcm_data = _float_to_pcm(samples)
     return write_wav(pcm_data, output, sample_rate)
-
-
-# ---------------------------------------------------------------------------
-# Video Integration
-# ---------------------------------------------------------------------------
