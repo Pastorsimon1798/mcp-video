@@ -23,6 +23,8 @@ from ..ffmpeg_helpers import (
     _escape_ffmpeg_filter_value,
     _run_ffprobe_json,
 )
+from ..validation import _validate_color, _validate_timing_against_duration
+import warnings as _warnings
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +197,7 @@ def _measure_text(text: str, font_name: str, size: int) -> tuple[int, int]:
         if font_obj is not None:
             bbox = font_obj.getbbox(text)
             if bbox:
-                return bbox[2] - bbox[0], bbox[3] - bbox[1]
+                return int(bbox[2] - bbox[0]), int(bbox[3] - bbox[1])
     except Exception as e:
         logger.warning("PIL text measurement failed, using fallback: %s", e)
     lines = text.split("\n")
@@ -467,6 +469,44 @@ def text_animated(
             error_type="validation_error",
             code="invalid_parameter",
         )
+
+    # --- Guardrails: timing + color validation ---
+    _validate_color(color)
+    if start < 0:
+        raise MCPVideoError(
+            f"start must be >= 0, got {start}",
+            error_type="validation_error",
+            code="invalid_parameter",
+        )
+    if duration <= 0:
+        raise MCPVideoError(
+            f"duration must be > 0, got {duration}",
+            error_type="validation_error",
+            code="invalid_parameter",
+        )
+    try:
+        video_w, video_h = _get_video_dimensions(video)
+        from ..engine_probe import probe as _probe
+
+        vid_info = _probe(video)
+        timing_warnings = _validate_timing_against_duration(start, duration, vid_info.duration)
+        for w in timing_warnings:
+            _warnings.warn(f"[TEXT GUARDRAIL] {w}", stacklevel=2)
+        # Text overflow check
+        text_w, text_h = _measure_text(text, font, size)
+        if text_w > video_w - 40 or text_h > video_h - 40:
+            _warnings.warn(
+                f"[TEXT GUARDRAIL] Text dimensions ({text_w}x{text_h}) may exceed "
+                f"video frame ({video_w}x{video_h}). "
+                f"Consider reducing font size or shortening text.",
+                stacklevel=2,
+            )
+    except MCPVideoError:
+        raise
+    except Exception as e:
+        _warnings.warn(f"[TEXT GUARDRAIL] Could not validate text layout: {e}", stacklevel=2)
+    # --- End guardrails ---
+
     filter_complex, cmd_path = strategy(
         text=text,
         font=font,

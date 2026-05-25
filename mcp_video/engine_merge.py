@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+import warnings as _warnings
 
 from .defaults import (
     DEFAULT_AUDIO_CHANNELS,
@@ -19,6 +20,7 @@ from .paths import _auto_output
 from .ffmpeg_helpers import _build_ffmpeg_cmd, _run_ffmpeg
 from .errors import InputFileError, MCPVideoError
 from .ffmpeg_helpers import _escape_ffmpeg_filter_value, _validate_input_path, _validate_output_path
+from .merge_guardrails import validate_merge_compatibility
 from .models import EditResult
 
 
@@ -117,6 +119,25 @@ def merge(
 
     clips = [_validate_input_path(c) for c in clips]
     infos = [probe(c) for c in clips]
+
+    # --- Guardrails: pre-merge compatibility ---
+    has_transitions = bool(transition or transitions)
+    try:
+        merge_warnings = validate_merge_compatibility(
+            infos,
+            transition_duration=transition_duration if has_transitions else 0.0,
+        )
+        for w in merge_warnings:
+            _warnings.warn(f"[MERGE GUARDRAIL] {w}", stacklevel=2)
+    except MCPVideoError:
+        raise
+    except Exception as e:
+        _warnings.warn(
+            f"[MERGE GUARDRAIL] Could not validate merge compatibility: {e}",
+            stacklevel=2,
+        )
+    # --- End guardrails ---
+
     resolutions = {i.display_resolution for i in infos}
     codecs = {i.codec for i in infos}
     fps_set = {round(i.fps, 2) for i in infos}

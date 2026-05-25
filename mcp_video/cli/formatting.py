@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from rich.console import Console
@@ -32,7 +33,14 @@ def _format_success_panel(
 
 def _format_path_panel(label: str, result: Any) -> None:
     path = _model_dump(result).get("output_path", result) if isinstance(_model_dump(result), dict) else result
-    _format_success_panel(f"[bold green]{label}:[/bold green] {path}")
+    path_text = str(path)
+    filename = Path(path_text).name
+    _format_success_panel(
+        [
+            f"[bold green]{label}:[/bold green] {filename}",
+            f"[bold green]Output:[/bold green] {path_text}",
+        ]
+    )
 
 
 def _format_info_text(info: Any) -> None:

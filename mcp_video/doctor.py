@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import importlib.metadata
 import importlib.util
+import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from .errors import HyperframesNotFoundError
@@ -25,6 +28,9 @@ PYTHON_313_UPSCALE_BACKEND_HINT = (
     'The OpenCV fallback is still installed by: pip install "mcp-video[upscale]". '
     "Use Python 3.11 or 3.12 if you specifically need the Real-ESRGAN backend."
 )
+
+MIN_FFMPEG_VERSION = 6
+MIN_FFMPEG_VERSION_HARD = 5
 
 COMMAND_CHECKS = (
     {
@@ -62,6 +68,13 @@ COMMAND_CHECKS = (
         "command": ["npm", "--version"],
         "install_hint": "Install npm for Hyperframes package diagnostics.",
     },
+    {
+        "name": "python",
+        "category": "core",
+        "required": False,
+        "command": ["python3", "--version"],
+        "install_hint": "Python 3.11+ is required.",
+    },
 )
 
 PACKAGE_CHECKS = (
@@ -76,7 +89,7 @@ PACKAGE_CHECKS = (
     ("demucs", "demucs", "ai", False, 'Install stem-separation extras: pip install "mcp-video[stems]"'),
     ("realesrgan", "realesrgan", "ai", False, 'Install upscale extras: pip install "mcp-video[upscale]"'),
     ("basicsr", "basicsr", "ai", False, 'Install upscale extras: pip install "mcp-video[upscale]"'),
-    ("numpy", "numpy", "ai", False, 'Install upscale extras: pip install "mcp-video[upscale]"'),
+    ("numpy", "numpy", "audio", False, 'Install audio extras: pip install "mcp-video[audio]"'),
     ("opencv-contrib-python", "cv2", "ai", False, 'Install upscale extras: pip install "mcp-video[upscale]"'),
     (
         "torch",
@@ -88,7 +101,40 @@ PACKAGE_CHECKS = (
     ("torchaudio", "torchaudio", "ai", False, 'Install stem-separation extras: pip install "mcp-video[stems]"'),
     ("torchcodec", "torchcodec", "ai", False, 'Install stem-separation extras: pip install "mcp-video[stems]"'),
     ("imagehash", "imagehash", "ai", False, 'Install AI scene extras: pip install "mcp-video[ai-scene]"'),
+    (
+        "scipy",
+        "scipy",
+        "audio-enhanced",
+        False,
+        'Install enhanced audio extras: pip install "mcp-video[audio-enhanced]"',
+    ),
+    (
+        "soundfile",
+        "soundfile",
+        "audio-enhanced",
+        False,
+        'Install enhanced audio extras: pip install "mcp-video[audio-enhanced]"',
+    ),
+    (
+        "librosa",
+        "librosa",
+        "audio-enhanced",
+        False,
+        'Install enhanced audio extras: pip install "mcp-video[audio-enhanced]"',
+    ),
+    ("basic-pitch", "basic_pitch", "audio-ai", False, 'Install audio AI extras: pip install "mcp-video[audio-ai]"'),
+    ("meltysynth", "meltysynth", "audio-midi", False, 'Install MIDI audio extras: pip install "mcp-video[audio-midi]"'),
 )
+
+
+def _parse_ffmpeg_version(version_line: str | None) -> int | None:
+    """Extract major version number from 'ffmpeg version X.Y...' string."""
+    if not version_line:
+        return None
+    m = re.search(r"ffmpeg version (\d+)", version_line, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    return None
 
 
 def _command_version(command: list[str]) -> str | None:
@@ -113,6 +159,38 @@ def _check_command(definition: dict[str, Any], which: WhichFn, version_runner: V
     path = which(definition["name"])
     version = version_runner(definition["command"]) if path else None
     ok = path is not None and version is not None
+    extra: dict[str, Any] = {}
+
+    # FFmpeg version enforcement
+    if definition["name"] == "ffmpeg" and ok:
+        major = _parse_ffmpeg_version(version)
+        if major is not None:
+            extra["major_version"] = major
+            if major < MIN_FFMPEG_VERSION_HARD:
+                ok = False
+                extra["install_hint"] = (
+                    f"FFmpeg {major}.x is too old. mcp-video requires FFmpeg {MIN_FFMPEG_VERSION}+. "
+                    "Update: brew upgrade ffmpeg, apt upgrade ffmpeg, or download from https://ffmpeg.org"
+                )
+            elif major < MIN_FFMPEG_VERSION:
+                extra["warning"] = (
+                    f"FFmpeg {major}.x works but {MIN_FFMPEG_VERSION}+ is recommended for full feature support."
+                )
+
+    # Hyperframes version check
+    if definition["name"] == "node" and ok:
+        try:
+            hf_result = subprocess.run(
+                ["npx", "--yes", "hyperframes", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=DOCTOR_COMMAND_TIMEOUT,
+            )
+            if hf_result.returncode == 0:
+                extra["hyperframes_version"] = hf_result.stdout.strip().splitlines()[0]
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
     return {
         "name": definition["name"],
         "category": definition["category"],
@@ -121,7 +199,8 @@ def _check_command(definition: dict[str, Any], which: WhichFn, version_runner: V
         "path": path,
         "version": version,
         "command": definition["command"],
-        "install_hint": None if ok else definition["install_hint"],
+        "install_hint": extra.get("install_hint", definition["install_hint"]) if not ok else None,
+        **extra,
     }
 
 
@@ -147,6 +226,90 @@ def _check_package(
         "path": None,
         "version": version if ok else None,
         "install_hint": None if ok else install_hint,
+    }
+
+
+def _check_crush() -> dict[str, Any]:
+    """Check CRUSH shader availability."""
+    env_path = os.environ.get("MCP_VIDEO_CRUSH_PATH")
+    if env_path:
+        p = Path(env_path).expanduser().resolve()
+        if p.is_dir():
+            return {
+                "name": "crush_shaders",
+                "category": "crush",
+                "required": False,
+                "ok": True,
+                "path": str(p),
+                "version": None,
+                "install_hint": None,
+            }
+
+    home_path = Path.home() / ".mcp-video" / "crush-js" / "src"
+    if home_path.is_dir():
+        return {
+            "name": "crush_shaders",
+            "category": "crush",
+            "required": False,
+            "ok": True,
+            "path": str(home_path),
+            "version": None,
+            "install_hint": None,
+        }
+
+    return {
+        "name": "crush_shaders",
+        "category": "crush",
+        "required": False,
+        "ok": False,
+        "path": None,
+        "version": None,
+        "install_hint": (
+            "CRUSH shaders not found. Set MCP_VIDEO_CRUSH_PATH env var or install to ~/.mcp-video/crush-js/src. "
+            "See https://github.com/pushingsquares/crush for installation."
+        ),
+    }
+
+
+def _check_audio_engine() -> dict[str, Any]:
+    """Check audio engine capabilities."""
+    has_numpy = importlib.util.find_spec("numpy") is not None
+    has_scipy = importlib.util.find_spec("scipy") is not None
+    has_pedalboard = importlib.util.find_spec("pedalboard") is not None
+
+    status = "legacy"
+    if has_numpy and has_scipy:
+        status = "enhanced"
+    elif has_numpy:
+        status = "standard"
+
+    return {
+        "name": "audio_engine",
+        "category": "audio",
+        "required": False,
+        "ok": has_numpy,
+        "path": None,
+        "version": status,
+        "install_hint": None if has_numpy else 'pip install "mcp-video[audio]" for professional audio synthesis',
+        "details": {
+            "numpy": has_numpy,
+            "scipy": has_scipy,
+            "pedalboard": has_pedalboard,
+        },
+    }
+
+
+def _check_minimax() -> dict[str, Any]:
+    """Check MiniMax API key availability."""
+    has_key = bool(os.environ.get("MINIMAX_API_KEY"))
+    return {
+        "name": "minimax_api",
+        "category": "music_generation",
+        "required": False,
+        "ok": has_key,
+        "path": None,
+        "version": None,
+        "install_hint": None if has_key else "Set MINIMAX_API_KEY environment variable for AI music generation.",
     }
 
 
@@ -244,6 +407,9 @@ def run_diagnostics(
         _check_package(*definition, find_spec=find_spec, package_version=package_version)
         for definition in PACKAGE_CHECKS
     )
+    checks.append(_check_crush())
+    checks.append(_check_audio_engine())
+    checks.append(_check_minimax())
     return {
         "success": True,
         "platform": {

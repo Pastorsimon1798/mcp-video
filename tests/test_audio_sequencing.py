@@ -58,7 +58,7 @@ class TestAudioSequence:
 
     def test_unknown_tone_waveform_rejected(self, tmp_path):
         output = str(tmp_path / "out.wav")
-        seq = [{"type": "tone", "at": 0.0, "duration": 0.05, "freq": 440, "waveform": "pulse"}]
+        seq = [{"type": "tone", "at": 0.0, "duration": 0.05, "freq": 440, "waveform": "alien_wave"}]
         with pytest.raises(MCPVideoError, match="waveform"):
             audio_sequence(seq, output, sample_rate=8000)
         assert not Path(output).exists()

@@ -451,7 +451,7 @@ class TestClientAudioSequenceValidation:
     def test_audio_sequence_rejects_unknown_waveform(self, editor):
         with pytest.raises(MCPVideoError, match="waveform"):
             editor.audio_sequence(
-                [{"type": "tone", "at": 0.0, "duration": 0.1, "waveform": "pulse"}],
+                [{"type": "tone", "at": 0.0, "duration": 0.1, "waveform": "alien_wave"}],
                 output="/tmp/out.wav",
             )
 

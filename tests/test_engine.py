@@ -10,6 +10,7 @@ from mcp_video.engine import (
     _parse_ffmpeg_time,
     add_audio,
     add_text,
+    add_texts,
     apply_filter,
     chroma_key,
     convert,
@@ -199,6 +200,44 @@ class TestAddText:
             text="Timed",
             start_time=0.5,
             duration=1.0,
+        )
+        assert os.path.isfile(result.output_path)
+
+
+class TestAddTexts:
+    @requires_filter("drawtext", "Text overlay")
+    def test_add_texts_overlay(self, sample_video):
+        result = add_texts(
+            sample_video,
+            texts=[
+                {"text": "Line 1", "position": "center", "size": 48},
+                {"text": "Line 2", "position": "center", "size": 36},
+            ],
+        )
+        assert os.path.isfile(result.output_path)
+        assert result.operation == "add_texts"
+
+    @requires_filter("drawtext", "Text overlay")
+    def test_add_texts_auto_layout(self, sample_video):
+        result = add_texts(
+            sample_video,
+            texts=[
+                {"text": "Top", "position": "top-center", "size": 40},
+                {"text": "Middle", "position": "top-center", "size": 40},
+                {"text": "Bottom", "position": "top-center", "size": 40},
+            ],
+            auto_layout=True,
+        )
+        assert os.path.isfile(result.output_path)
+
+    @requires_filter("drawtext", "Text overlay")
+    def test_add_texts_with_timing(self, sample_video):
+        result = add_texts(
+            sample_video,
+            texts=[
+                {"text": "First", "start_time": 0.5, "duration": 1.0},
+                {"text": "Second", "start_time": 2.0, "duration": 1.0},
+            ],
         )
         assert os.path.isfile(result.output_path)
 
