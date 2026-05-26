@@ -8,6 +8,7 @@ backend cannot be imported.
 from __future__ import annotations
 
 import math
+import random
 import struct
 import wave
 
@@ -22,6 +23,16 @@ from mcp_video.ffmpeg_helpers import _validate_output_path
 DEFAULT_SAMPLE_RATE = 44100
 DEFAULT_CHANNELS = 1
 DEFAULT_SAMPLE_WIDTH = 2  # 16-bit
+
+
+def _require_positive_frequency(frequency: float) -> None:
+    if frequency <= 0:
+        raise MCPVideoError(
+            "frequency must be greater than 0",
+            error_type="validation_error",
+            code="invalid_frequency",
+        )
+
 
 # ---------------------------------------------------------------------------
 # Waveform Generation
@@ -71,6 +82,7 @@ def generate_sawtooth(
     amplitude: float = 0.5,
 ) -> bytes:
     """Generate a sawtooth wave."""
+    _require_positive_frequency(frequency)
     num_samples = int(sample_rate * duration)
     samples = []
     period = sample_rate / frequency
@@ -89,6 +101,7 @@ def generate_triangle(
     amplitude: float = 0.5,
 ) -> bytes:
     """Generate a triangle wave."""
+    _require_positive_frequency(frequency)
     num_samples = int(sample_rate * duration)
     samples = []
     period = sample_rate / frequency
@@ -112,8 +125,6 @@ def generate_noise(
     amplitude: float = 0.3,
 ) -> bytes:
     """Generate white noise."""
-    import random
-
     num_samples = int(sample_rate * duration)
     samples = []
 
@@ -121,6 +132,124 @@ def generate_noise(
         value = amplitude * (random.random() * 2 - 1)
         samples.append(value)
 
+    return _float_to_pcm(samples)
+
+
+def generate_pulse(
+    frequency: float,
+    duration: float,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    amplitude: float = 0.5,
+    width: float = 0.25,
+) -> bytes:
+    """Generate a pulse wave."""
+    _require_positive_frequency(frequency)
+    width = max(0.01, min(0.99, width))
+    num_samples = int(sample_rate * duration)
+    period = sample_rate / frequency
+    samples = []
+    for i in range(num_samples):
+        phase = (i % period) / period
+        samples.append(amplitude * (1.0 if phase < width else -1.0))
+    return _float_to_pcm(samples)
+
+
+def generate_supersaw(
+    frequency: float,
+    duration: float,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    amplitude: float = 0.5,
+    detune: float = 0.02,
+    voices: int = 7,
+) -> bytes:
+    """Generate detuned sawtooth voices."""
+    _require_positive_frequency(frequency)
+    voices = max(1, int(voices))
+    num_samples = int(sample_rate * duration)
+    samples = []
+    for i in range(num_samples):
+        value = 0.0
+        for voice in range(voices):
+            spread = (voice - (voices - 1) / 2) / ((voices - 1) / 2) if voices > 1 else 0.0
+            detuned_frequency = frequency * (1.0 + spread * detune)
+            if detuned_frequency <= 0:
+                raise MCPVideoError(
+                    "detune produces a non-positive voice frequency",
+                    error_type="validation_error",
+                    code="invalid_detune",
+                )
+            period = sample_rate / detuned_frequency
+            value += 2 * ((i % period) / period) - 1
+        samples.append(amplitude * value / voices)
+    return _float_to_pcm(samples)
+
+
+def generate_colored_noise(
+    duration: float,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    amplitude: float = 0.3,
+    color: str = "white",
+) -> bytes:
+    """Generate white, pink-ish, brown, or blue noise."""
+    num_samples = int(sample_rate * duration)
+    white = [random.random() * 2 - 1 for _ in range(num_samples)]
+    if color == "brown":
+        acc = 0.0
+        samples = []
+        for sample in white:
+            acc = max(-1.0, min(1.0, acc + sample * 0.02))
+            samples.append(acc)
+    elif color == "blue":
+        prev = white[0] if white else 0.0
+        samples = []
+        for sample in white:
+            samples.append(sample - prev)
+            prev = sample
+    elif color == "pink":
+        samples = _smooth_samples(white, window=8)
+    else:
+        samples = white
+    return _float_to_pcm(_normalize_samples(samples, amplitude))
+
+
+def generate_pluck(
+    frequency: float,
+    duration: float,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    amplitude: float = 0.5,
+    decay: float = 0.995,
+) -> bytes:
+    """Generate a simple Karplus-Strong pluck."""
+    _require_positive_frequency(frequency)
+    delay = max(1, int(sample_rate / frequency))
+    buffer = [random.random() * 2 - 1 for _ in range(delay)]
+    samples = []
+    index = 0
+    for _ in range(int(sample_rate * duration)):
+        sample = buffer[index]
+        next_index = (index + 1) % delay
+        buffer[index] = decay * 0.5 * (sample + buffer[next_index])
+        samples.append(sample)
+        index = next_index
+    return _float_to_pcm(_normalize_samples(samples, amplitude))
+
+
+def generate_fm(
+    frequency: float,
+    duration: float,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    amplitude: float = 0.5,
+    ratio: float = 2.0,
+    index: float = 5.0,
+) -> bytes:
+    """Generate a two-operator FM tone."""
+    _require_positive_frequency(frequency)
+    samples = []
+    for i in range(int(sample_rate * duration)):
+        t = i / sample_rate
+        carrier = 2 * math.pi * frequency * t
+        modulator = index * math.sin(2 * math.pi * frequency * ratio * t)
+        samples.append(amplitude * math.sin(carrier + modulator))
     return _float_to_pcm(samples)
 
 
@@ -221,13 +350,14 @@ def apply_reverb(
     room_size: float = 0.5,
     damping: float = 0.5,
     wet_level: float = 0.2,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
 ) -> list[float]:
     """Simple comb filter reverb."""
-    delay_samples = int(0.03 * DEFAULT_SAMPLE_RATE * room_size)  # ~30ms base
-    comb1 = _comb_filter(samples, int(delay_samples * 1.0), 0.805, damping)
-    comb2 = _comb_filter(samples, int(delay_samples * 0.97), 0.827, damping)
-    comb3 = _comb_filter(samples, int(delay_samples * 0.94), 0.783, damping)
-    comb4 = _comb_filter(samples, int(delay_samples * 0.91), 0.812, damping)
+    delay_samples = max(1, int(0.03 * sample_rate * max(0.0, room_size)))  # ~30ms base
+    comb1 = _comb_filter(samples, max(1, int(delay_samples * 1.0)), 0.805, damping)
+    comb2 = _comb_filter(samples, max(1, int(delay_samples * 0.97)), 0.827, damping)
+    comb3 = _comb_filter(samples, max(1, int(delay_samples * 0.94)), 0.783, damping)
+    comb4 = _comb_filter(samples, max(1, int(delay_samples * 0.91)), 0.812, damping)
 
     combined = [(c1 + c2 + c3 + c4) / 4 for c1, c2, c3, c4 in zip(comb1, comb2, comb3, comb4, strict=False)]
 
@@ -236,6 +366,179 @@ def apply_reverb(
     for dry, wet in zip(samples, combined, strict=False):
         result.append(dry * (1 - wet_level) + wet * wet_level)
 
+    return result
+
+
+def apply_delay(
+    samples: list[float],
+    delay_time: float = 0.3,
+    feedback: float = 0.4,
+    mix: float = 0.3,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+) -> list[float]:
+    """Apply a basic feedback delay."""
+    delay = max(1, int(delay_time * sample_rate))
+    buffer = [0.0] * delay
+    index = 0
+    result = []
+    for sample in samples:
+        delayed = buffer[index]
+        buffer[index] = sample + delayed * feedback
+        index = (index + 1) % delay
+        result.append(sample * (1.0 - mix) + delayed * mix)
+    return result
+
+
+def apply_chorus(
+    samples: list[float],
+    rate: float = 1.5,
+    depth: float = 0.002,
+    voices: int = 3,
+    mix: float = 0.5,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+) -> list[float]:
+    """Apply a lightweight modulated multi-voice delay."""
+    voices = max(1, int(voices))
+    max_delay = max(1, int((depth + 0.005) * sample_rate))
+    padded = [0.0] * max_delay + samples
+    result = []
+    for i, sample in enumerate(samples):
+        wet = 0.0
+        for voice in range(voices):
+            phase = voice * (2 * math.pi / voices)
+            lfo = depth * sample_rate * (0.5 + 0.5 * math.sin(2 * math.pi * rate * i / sample_rate + phase))
+            wet += padded[max_delay + i - min(max_delay, int(lfo))]
+        result.append(sample * (1.0 - mix) + (wet / voices) * mix)
+    return result
+
+
+def apply_flanger(
+    samples: list[float],
+    rate: float = 0.5,
+    depth: float = 0.003,
+    feedback: float = 0.5,
+    mix: float = 0.5,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+) -> list[float]:
+    """Apply a lightweight flanger."""
+    max_delay = max(1, int((depth + 0.002) * sample_rate))
+    buffer = [0.0] * max_delay
+    write_index = 0
+    result = []
+    for i, sample in enumerate(samples):
+        lfo = depth * sample_rate * (0.5 + 0.5 * math.sin(2 * math.pi * rate * i / sample_rate))
+        delay = min(max_delay - 1, int(lfo))
+        read_index = (write_index + (max_delay - 1 - delay)) % max_delay
+        delayed = buffer[read_index]
+        output = sample + delayed * mix
+        buffer[write_index] = sample + delayed * feedback
+        write_index = (write_index + 1) % max_delay
+        result.append(output)
+    return _limit_samples(result)
+
+
+def apply_distortion(
+    samples: list[float],
+    drive: float = 0.5,
+    tone: float = 0.5,
+    type_: str = "soft",
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+) -> list[float]:
+    """Apply soft, tube-like, or bit-crush distortion."""
+    del tone, sample_rate
+    if type_ == "bit":
+        steps = max(2, int(256 * (1.0 - min(0.95, drive))))
+        return [round(sample * steps) / steps for sample in samples]
+    amount = 1.0 + drive * (5.0 if type_ == "tube" else 10.0)
+    return [math.tanh(sample * amount) for sample in samples]
+
+
+def apply_compressor(
+    samples: list[float],
+    threshold: float = 0.5,
+    ratio: float = 4.0,
+    attack: float = 0.01,
+    release: float = 0.1,
+    makeup: float = 1.0,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+) -> list[float]:
+    """Apply simple peak compression."""
+    del attack, release, sample_rate
+    result = []
+    for sample in samples:
+        magnitude = abs(sample)
+        if magnitude > threshold:
+            excess = magnitude - threshold
+            magnitude = threshold + excess / max(1.0, ratio)
+            sample = math.copysign(magnitude, sample)
+        result.append(sample * makeup)
+    return _limit_samples(result)
+
+
+def apply_eq(
+    samples: list[float],
+    low_gain: float = 0.0,
+    mid_gain: float = 0.0,
+    high_gain: float = 0.0,
+    low_freq: float = 200.0,
+    high_freq: float = 4000.0,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+) -> list[float]:
+    """Apply a simple three-band gain approximation."""
+    low = apply_lowpass(samples, low_freq, sample_rate)
+    high = apply_highpass(samples, high_freq, sample_rate)
+    mid = [sample - low_i - high_i for sample, low_i, high_i in zip(samples, low, high, strict=False)]
+    low_mult = 10 ** (low_gain / 20)
+    mid_mult = 10 ** (mid_gain / 20)
+    high_mult = 10 ** (high_gain / 20)
+    return _limit_samples(
+        [
+            low_i * low_mult + mid_i * mid_mult + high_i * high_mult
+            for low_i, mid_i, high_i in zip(low, mid, high, strict=False)
+        ]
+    )
+
+
+def apply_pan(samples: list[float], pan: float = 0.0) -> list[list[float]]:
+    """Convert mono samples to constant-power stereo."""
+    pan = max(-1.0, min(1.0, pan))
+    angle = (pan + 1.0) * math.pi / 4.0
+    return [[sample * math.cos(angle), sample * math.sin(angle)] for sample in samples]
+
+
+def apply_width(samples: list[float] | list[list[float]], width: float = 1.0) -> list[float] | list[list[float]]:
+    """Apply mid-side width to stereo samples."""
+    if not samples or not isinstance(samples[0], list):
+        return samples
+    result = []
+    for left, right in samples:  # type: ignore[misc]
+        mid = (left + right) * 0.5
+        side = (right - left) * 0.5 * width
+        result.append([mid - side, mid + side])
+    return result
+
+
+def apply_tremolo(
+    samples: list[float], rate: float = 5.0, depth: float = 0.5, sample_rate: int = DEFAULT_SAMPLE_RATE
+) -> list[float]:
+    """Apply amplitude modulation."""
+    return [
+        sample * (1.0 - depth + depth * math.sin(2 * math.pi * rate * i / sample_rate))
+        for i, sample in enumerate(samples)
+    ]
+
+
+def apply_vibrato(
+    samples: list[float], rate: float = 5.0, depth: float = 0.003, sample_rate: int = DEFAULT_SAMPLE_RATE
+) -> list[float]:
+    """Apply pitch vibrato using a modulated delay."""
+    max_delay = max(1, int((depth + 0.002) * sample_rate))
+    padded = [0.0] * max_delay + samples
+    result = []
+    for i, sample in enumerate(samples):
+        lfo = depth * sample_rate * (0.5 + 0.5 * math.sin(2 * math.pi * rate * i / sample_rate))
+        idx = max_delay + i - min(max_delay, int(lfo))
+        result.append(padded[idx] if 0 <= idx < len(padded) else sample)
     return result
 
 
@@ -258,15 +561,35 @@ def _comb_filter(samples: list[float], delay: int, feedback: float, damping: flo
 # ---------------------------------------------------------------------------
 
 
-def _float_to_pcm(samples: list[float]) -> bytes:
+def _float_to_pcm(samples: list[float] | list[list[float]]) -> bytes:
     """Convert float samples (-1 to 1) to 16-bit PCM bytes."""
     pcm_data = []
     for sample in samples:
-        # Clamp to [-1, 1]
-        sample = max(-1, min(1, sample))
-        # Convert to 16-bit signed int
-        pcm_data.append(struct.pack("<h", int(sample * 32767)))
+        values = sample if isinstance(sample, list) else [sample]
+        for value in values:
+            value = max(-1, min(1, value))
+            pcm_data.append(struct.pack("<h", int(value * 32767)))
     return b"".join(pcm_data)
+
+
+def _normalize_samples(samples: list[float], amplitude: float) -> list[float]:
+    max_value = max(abs(sample) for sample in samples) if samples else 0.0
+    if max_value == 0:
+        return samples
+    return [sample / max_value * amplitude for sample in samples]
+
+
+def _smooth_samples(samples: list[float], window: int) -> list[float]:
+    result = []
+    for i in range(len(samples)):
+        start = max(0, i - window)
+        end = min(len(samples), i + window + 1)
+        result.append(sum(samples[start:end]) / (end - start))
+    return result
+
+
+def _limit_samples(samples: list[float]) -> list[float]:
+    return [max(-1.0, min(1.0, sample)) for sample in samples]
 
 
 def _pcm_to_float(
